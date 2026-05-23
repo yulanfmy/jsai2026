@@ -1,0 +1,10 @@
+command: ['streamlit', 'run', 'src/app.py', '--server.port', '8000', '--server.headless', 'true']
+env:
+  - name: OPENAI_API_KEY
+    value: ''
+  - name: CHAT_MODEL
+    value: 'gpt-4o-mini'
+  - name: TRACKS_PER_PHASE
+    value: '3'
+  - name: PYTHONPATH
+    value: '/app'
