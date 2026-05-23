@@ -309,12 +309,13 @@ def main() -> None:
                 st.plotly_chart(
                     render_circumplex(current, target, playlist),
                     use_container_width=True,
+                    key="playlist_circumplex",
                 )
 
     with tab2:
         playlist_to_show = st.session_state.get("playlist")
         fig = render_circumplex(current, target, playlist_to_show)
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True, key="tab_circumplex")
 
         st.subheader("Emotion Details")
         cols = st.columns(3)
