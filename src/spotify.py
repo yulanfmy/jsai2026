@@ -1,4 +1,4 @@
-"""Spotify API integration for playlist creation."""
+"""Spotify API integration for playback via Spotify Connect."""
 
 import json as _json
 import subprocess
@@ -11,7 +11,7 @@ from src.config import SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET
 SPOTIFY_AUTH_URL = "https://accounts.spotify.com/authorize"
 SPOTIFY_TOKEN_URL = "https://accounts.spotify.com/api/token"
 SPOTIFY_API_BASE = "https://api.spotify.com/v1"
-SCOPES = "playlist-modify-public playlist-modify-private"
+SCOPES = "user-read-playback-state user-modify-playback-state"
 
 
 def get_auth_url(redirect_uri: str) -> str:
@@ -79,64 +79,54 @@ class SpotifyAPIError(Exception):
         super().__init__(f"Spotify API error {status_code}: {body}")
 
 
-def _api_post(url: str, access_token: str, payload: dict) -> dict:
-    """POST JSON to a Spotify API endpoint using subprocess curl.
+def _curl(
+    method: str, url: str, access_token: str, payload: dict | None = None,
+) -> tuple[int, str]:
+    """Execute an HTTP request via subprocess curl.
 
     Both the ``requests`` library and ``urllib.request`` return 403 when
     called from inside a Streamlit server process, while the same token
     and URL succeed with curl.  Using subprocess curl bypasses whatever
     network interception causes the issue.
     """
-    result = subprocess.run(
-        [
-            "curl", "-s", "-w", "\n%{http_code}",
-            "-X", "POST",
-            "-H", f"Authorization: Bearer {access_token}",
-            "-H", "Content-Type: application/json",
-            "-d", _json.dumps(payload),
-            url,
-        ],
-        capture_output=True,
-        text=True,
-        timeout=30,
-    )
+    cmd = [
+        "curl", "-s", "-w", "\n%{http_code}",
+        "-X", method,
+        "-H", f"Authorization: Bearer {access_token}",
+    ]
+    if payload is not None:
+        cmd += ["-H", "Content-Type: application/json", "-d", _json.dumps(payload)]
+    cmd.append(url)
+
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
     lines = result.stdout.strip().rsplit("\n", 1)
     body = lines[0] if len(lines) > 1 else ""
     status = int(lines[-1]) if lines and lines[-1].isdigit() else 0
+    return status, body
+
+
+def get_devices(access_token: str) -> list[dict]:
+    """Return the list of the user's available Spotify Connect devices."""
+    status, body = _curl("GET", f"{SPOTIFY_API_BASE}/me/player/devices", access_token)
     if status < 200 or status >= 300:
         raise SpotifyAPIError(status, body)
-    return _json.loads(body)
+    data = _json.loads(body) if body else {}
+    return data.get("devices", [])
 
 
-def create_playlist(
+def start_playback(
     access_token: str,
-    name: str,
-    description: str = "",
-) -> dict:
-    """Create a new playlist in the current user's Spotify account."""
-    url = f"{SPOTIFY_API_BASE}/me/playlists"
-    return _api_post(url, access_token, {
-        "name": name,
-        "description": description,
-        "public": False,
-    })
-
-
-def add_tracks(access_token: str, playlist_id: str, track_ids: list[str]) -> dict:
-    """Add tracks to a Spotify playlist. Accepts Spotify track IDs."""
-    uris = [f"spotify:track:{tid}" for tid in track_ids]
-    url = f"{SPOTIFY_API_BASE}/playlists/{playlist_id}/tracks"
-    return _api_post(url, access_token, {"uris": uris})
-
-
-def save_playlist(
-    access_token: str,
-    name: str,
-    description: str,
     track_ids: list[str],
-) -> dict:
-    """Create a playlist and add tracks in one call. Returns the playlist object."""
-    playlist = create_playlist(access_token, name, description)
-    if track_ids:
-        add_tracks(access_token, playlist["id"], track_ids)
-    return playlist
+    device_id: str | None = None,
+) -> None:
+    """Start playback of the given tracks on a Spotify Connect device.
+
+    If *device_id* is ``None`` the user's currently active device is used.
+    """
+    uris = [f"spotify:track:{tid}" for tid in track_ids]
+    url = f"{SPOTIFY_API_BASE}/me/player/play"
+    if device_id:
+        url += f"?device_id={device_id}"
+    status, body = _curl("PUT", url, access_token, {"uris": uris})
+    if status not in (200, 202, 204):
+        raise SpotifyAPIError(status, body)
