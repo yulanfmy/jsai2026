@@ -1,6 +1,9 @@
 """Spotify API integration for playlist creation."""
 
+import json as _json
+import urllib.error
 import urllib.parse
+import urllib.request
 
 import requests
 
@@ -68,43 +71,55 @@ def get_current_user(access_token: str) -> dict:
     return resp.json()
 
 
+class SpotifyAPIError(Exception):
+    """Raised when a Spotify API call returns a non-success status."""
+
+    def __init__(self, status_code: int, body: str):
+        self.status_code = status_code
+        self.body = body
+        super().__init__(f"Spotify API error {status_code}: {body}")
+
+
+def _api_post(url: str, access_token: str, payload: dict) -> dict:
+    """POST JSON to a Spotify API endpoint using urllib (avoids requests
+    library issues in certain runtime environments like Streamlit)."""
+    data = _json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(
+        url,
+        data=data,
+        headers={
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            return _json.loads(resp.read().decode())
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode() if exc.fp else ""
+        raise SpotifyAPIError(exc.code, body) from exc
+
+
 def create_playlist(
     access_token: str,
     name: str,
     description: str = "",
 ) -> dict:
     """Create a new playlist in the current user's Spotify account."""
-    resp = requests.post(
-        f"{SPOTIFY_API_BASE}/me/playlists",
-        headers={
-            "Authorization": f"Bearer {access_token}",
-            "Content-Type": "application/json",
-        },
-        json={
-            "name": name,
-            "description": description,
-            "public": False,
-        },
-        timeout=15,
-    )
-    resp.raise_for_status()
-    return resp.json()
+    url = f"{SPOTIFY_API_BASE}/me/playlists"
+    return _api_post(url, access_token, {
+        "name": name,
+        "description": description,
+        "public": False,
+    })
 
 
 def add_tracks(access_token: str, playlist_id: str, track_ids: list[str]) -> dict:
     """Add tracks to a Spotify playlist. Accepts Spotify track IDs."""
     uris = [f"spotify:track:{tid}" for tid in track_ids]
-    resp = requests.post(
-        f"{SPOTIFY_API_BASE}/playlists/{playlist_id}/tracks",
-        headers={
-            "Authorization": f"Bearer {access_token}",
-            "Content-Type": "application/json",
-        },
-        json={"uris": uris},
-        timeout=15,
-    )
-    resp.raise_for_status()
-    return resp.json()
+    url = f"{SPOTIFY_API_BASE}/playlists/{playlist_id}/tracks"
+    return _api_post(url, access_token, {"uris": uris})
 
 
 def save_playlist(

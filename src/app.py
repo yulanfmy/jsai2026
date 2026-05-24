@@ -12,7 +12,6 @@ if _project_root not in sys.path:
     sys.path.insert(0, _project_root)
 
 import plotly.graph_objects as go
-import requests
 import streamlit as st
 
 from src.config import (
@@ -25,6 +24,7 @@ from src.emotions import Emotion, get_emotion, list_emotions
 from src.feature_estimator import estimate_batch
 from src.playlist import Playlist, generate_playlist
 from src.spotify import (
+    SpotifyAPIError,
     exchange_code_for_token,
     get_auth_url,
     get_current_user,
@@ -276,8 +276,8 @@ def render_save_to_spotify(playlist: Playlist) -> None:
             playlist_url = result.get("external_urls", {}).get("spotify", "")
             st.success(f"Playlist saved! [{name}]({playlist_url})")
             st.balloons()
-        except requests.exceptions.HTTPError as exc:
-            if exc.response is not None and exc.response.status_code == 403:
+        except SpotifyAPIError as exc:
+            if exc.status_code == 403:
                 keys = ("spotify_token", "spotify_refresh", "spotify_user_id", "spotify_user_name")
                 for key in keys:
                     st.session_state.pop(key, None)
