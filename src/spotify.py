@@ -70,13 +70,12 @@ def get_current_user(access_token: str) -> dict:
 
 def create_playlist(
     access_token: str,
-    user_id: str,
     name: str,
     description: str = "",
 ) -> dict:
-    """Create a new playlist in the user's Spotify account."""
+    """Create a new playlist in the current user's Spotify account."""
     resp = requests.post(
-        f"{SPOTIFY_API_BASE}/users/{user_id}/playlists",
+        f"{SPOTIFY_API_BASE}/me/playlists",
         headers={
             "Authorization": f"Bearer {access_token}",
             "Content-Type": "application/json",
@@ -110,13 +109,12 @@ def add_tracks(access_token: str, playlist_id: str, track_ids: list[str]) -> dic
 
 def save_playlist(
     access_token: str,
-    user_id: str,
     name: str,
     description: str,
     track_ids: list[str],
 ) -> dict:
     """Create a playlist and add tracks in one call. Returns the playlist object."""
-    playlist = create_playlist(access_token, user_id, name, description)
+    playlist = create_playlist(access_token, name, description)
     if track_ids:
         add_tracks(access_token, playlist["id"], track_ids)
     return playlist
