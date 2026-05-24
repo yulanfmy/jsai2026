@@ -1,9 +1,8 @@
 """Spotify API integration for playlist creation."""
 
 import json as _json
-import urllib.error
+import subprocess
 import urllib.parse
-import urllib.request
 
 import requests
 
@@ -81,24 +80,32 @@ class SpotifyAPIError(Exception):
 
 
 def _api_post(url: str, access_token: str, payload: dict) -> dict:
-    """POST JSON to a Spotify API endpoint using urllib (avoids requests
-    library issues in certain runtime environments like Streamlit)."""
-    data = _json.dumps(payload).encode("utf-8")
-    req = urllib.request.Request(
-        url,
-        data=data,
-        headers={
-            "Authorization": f"Bearer {access_token}",
-            "Content-Type": "application/json",
-        },
-        method="POST",
+    """POST JSON to a Spotify API endpoint using subprocess curl.
+
+    Both the ``requests`` library and ``urllib.request`` return 403 when
+    called from inside a Streamlit server process, while the same token
+    and URL succeed with curl.  Using subprocess curl bypasses whatever
+    network interception causes the issue.
+    """
+    result = subprocess.run(
+        [
+            "curl", "-s", "-w", "\n%{http_code}",
+            "-X", "POST",
+            "-H", f"Authorization: Bearer {access_token}",
+            "-H", "Content-Type: application/json",
+            "-d", _json.dumps(payload),
+            url,
+        ],
+        capture_output=True,
+        text=True,
+        timeout=30,
     )
-    try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            return _json.loads(resp.read().decode())
-    except urllib.error.HTTPError as exc:
-        body = exc.read().decode() if exc.fp else ""
-        raise SpotifyAPIError(exc.code, body) from exc
+    lines = result.stdout.strip().rsplit("\n", 1)
+    body = lines[0] if len(lines) > 1 else ""
+    status = int(lines[-1]) if lines and lines[-1].isdigit() else 0
+    if status < 200 or status >= 300:
+        raise SpotifyAPIError(status, body)
+    return _json.loads(body)
 
 
 def create_playlist(
