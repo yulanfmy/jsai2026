@@ -12,6 +12,7 @@ if _project_root not in sys.path:
     sys.path.insert(0, _project_root)
 
 import plotly.graph_objects as go
+import requests
 import streamlit as st
 
 from src.config import (
@@ -276,6 +277,18 @@ def render_save_to_spotify(playlist: Playlist) -> None:
             playlist_url = result.get("external_urls", {}).get("spotify", "")
             st.success(f"Playlist saved! [{name}]({playlist_url})")
             st.balloons()
+        except requests.exceptions.HTTPError as exc:
+            if exc.response is not None and exc.response.status_code == 403:
+                keys = ("spotify_token", "spotify_refresh", "spotify_user_id", "spotify_user_name")
+                for key in keys:
+                    st.session_state.pop(key, None)
+                st.warning(
+                    "Your Spotify session lacks playlist creation permission. "
+                    "Please reconnect to Spotify to grant access."
+                )
+                st.rerun()
+            else:
+                st.error(f"Failed to save playlist: {exc}")
         except Exception as exc:
             st.error(f"Failed to save playlist: {exc}")
 

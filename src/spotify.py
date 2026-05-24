@@ -19,7 +19,7 @@ def get_auth_url(redirect_uri: str) -> str:
         "response_type": "code",
         "redirect_uri": redirect_uri,
         "scope": SCOPES,
-        "show_dialog": "false",
+        "show_dialog": "true",
     }
     return SPOTIFY_AUTH_URL + "?" + urllib.parse.urlencode(params)
 
