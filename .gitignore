@@ -8,3 +8,5 @@ build/
 venv/
 *.egg
 .ruff_cache/
+src/data/users/
+src/data/tracks.json

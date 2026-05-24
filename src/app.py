@@ -2,6 +2,9 @@
 
 Streamlit web interface implementing the ISO principle and Russell's
 circumplex model for emotionally adaptive playlist generation.
+
+Multi-user: each Spotify user's track library is stored and queried
+independently so recommendations only use the current user's music.
 """
 
 import sys
@@ -26,6 +29,7 @@ from src.playlist import Playlist, generate_playlist
 from src.spotify import (
     SpotifyAPIError,
     exchange_code_for_token,
+    fetch_liked_songs,
     get_auth_url,
     get_current_user,
     get_devices,
@@ -45,6 +49,10 @@ from src.tracks import (
 st.set_page_config(page_title="MindTune", page_icon="\U0001f3b5", layout="wide")
 
 
+# ---------------------------------------------------------------------------
+# Session / auth helpers
+# ---------------------------------------------------------------------------
+
 def handle_spotify_callback() -> None:
     """Handle Spotify OAuth callback if a code is present in query params."""
     params = st.query_params
@@ -61,6 +69,7 @@ def handle_spotify_callback() -> None:
         user = get_current_user(token_data["access_token"])
         st.session_state["spotify_user_id"] = user["id"]
         st.session_state["spotify_user_name"] = user.get("display_name", user["id"])
+        st.session_state["user_id"] = user["id"]
     except Exception:
         st.session_state.pop("spotify_token", None)
     st.query_params.clear()
@@ -90,6 +99,132 @@ def ensure_spotify_token() -> str | None:
         st.session_state.pop("spotify_token", None)
         return None
 
+
+def get_user_id() -> str | None:
+    """Return the current session's user_id, or None if not logged in."""
+    return st.session_state.get("user_id")
+
+
+# ---------------------------------------------------------------------------
+# Login / welcome screen
+# ---------------------------------------------------------------------------
+
+def render_login() -> None:
+    """Show the login screen where users identify themselves."""
+    st.title("\U0001f3b5 MindTune")
+    st.caption(
+        "Emotion-transition music recommendation based on the ISO principle "
+        "and Russell's circumplex model"
+    )
+
+    st.markdown("---")
+    st.subheader("Welcome! Please log in to get started.")
+    st.write(
+        "MindTune generates personalised emotion-transition playlists from "
+        "**your own** Spotify library. Each user's music is kept private."
+    )
+
+    has_creds = SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("#### Option A: Enter your Spotify User ID")
+        st.caption("Use this if your library has already been imported.")
+        uid = st.text_input(
+            "Spotify User ID",
+            placeholder="e.g. 31vyyplvkasqpb7cksrua3jep2q4",
+            key="login_user_id_input",
+        )
+        if st.button("Log in", key="login_btn"):
+            if uid.strip():
+                st.session_state["user_id"] = uid.strip()
+                st.rerun()
+            else:
+                st.error("Please enter your Spotify User ID.")
+
+    with col2:
+        st.markdown("#### Option B: Connect with Spotify")
+        st.caption(
+            "Log in with your Spotify account to automatically identify "
+            "yourself and import your library."
+        )
+        if has_creds:
+            auth_url = get_auth_url(SPOTIFY_REDIRECT_URI)
+            st.markdown(
+                f'<a href="{auth_url}" target="_self" style="'
+                'display:inline-block;padding:0.6em 1.2em;background:#1DB954;'
+                'color:white;border-radius:24px;text-decoration:none;'
+                'font-weight:bold;margin-top:0.5em;">'
+                '\U0001f3a7 Connect with Spotify</a>',
+                unsafe_allow_html=True,
+            )
+        else:
+            st.info(
+                "Set `SPOTIFY_CLIENT_ID` and `SPOTIFY_CLIENT_SECRET` in "
+                "`.env` to enable Spotify login."
+            )
+
+
+# ---------------------------------------------------------------------------
+# Library import
+# ---------------------------------------------------------------------------
+
+def render_library_import(user_id: str) -> None:
+    """Show UI to import the user's liked songs from Spotify."""
+    st.info(
+        f"No track library found for user **{user_id}**. "
+        "Import your Spotify liked songs to get started."
+    )
+
+    token = ensure_spotify_token()
+    if not token:
+        has_creds = SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET
+        if has_creds:
+            auth_url = get_auth_url(SPOTIFY_REDIRECT_URI)
+            st.markdown(
+                f'<a href="{auth_url}" target="_self" style="'
+                'display:inline-block;padding:0.5em 1em;background:#1DB954;'
+                'color:white;border-radius:24px;text-decoration:none;'
+                'font-weight:bold;">'
+                '\U0001f3a7 Connect to Spotify to import your library</a>',
+                unsafe_allow_html=True,
+            )
+        else:
+            st.warning(
+                "Set Spotify credentials in `.env` to enable automatic import. "
+                "Alternatively, place a `tracks.json` file manually."
+            )
+        return
+
+    user_name = st.session_state.get("spotify_user_name", user_id)
+    st.caption(f"Authenticated as **{user_name}**")
+
+    if st.button("Import my Spotify liked songs", type="primary", key="import_lib"):
+        progress = st.progress(0, text="Fetching liked songs from Spotify...")
+        status = st.empty()
+
+        def on_progress(done: int, total: int) -> None:
+            pct = done / total if total else 0
+            progress.progress(pct, text=f"Fetched {done}/{total} songs...")
+            status.text(f"Page {done // 50 + 1}...")
+
+        try:
+            tracks = fetch_liked_songs(token, progress_callback=on_progress)
+            save_tracks(tracks, user_id)
+            invalidate_cache(user_id)
+            progress.progress(1.0, text="Done!")
+            status.success(f"Imported {len(tracks)} tracks into your library.")
+            st.rerun()
+        except SpotifyAPIError as exc:
+            st.error(f"Spotify API error: {exc}")
+        except Exception as exc:
+            st.error(f"Import failed: {exc}")
+
+
+# ---------------------------------------------------------------------------
+# Circumplex visualisation
+# ---------------------------------------------------------------------------
 
 def render_circumplex(
     current: Emotion | None = None,
@@ -181,10 +316,14 @@ def render_circumplex(
     return fig
 
 
-def render_feature_estimation_ui() -> None:
+# ---------------------------------------------------------------------------
+# Feature estimation
+# ---------------------------------------------------------------------------
+
+def render_feature_estimation_ui(user_id: str) -> None:
     """Show UI for running LLM feature estimation on tracks."""
     st.warning(
-        f"Your track library has {get_track_count()} tracks but audio features "
+        f"Your track library has {get_track_count(user_id)} tracks but audio features "
         "have not been estimated yet. Run the feature estimation to enable "
         "playlist generation."
     )
@@ -202,7 +341,7 @@ def render_feature_estimation_ui() -> None:
     )
 
     if st.button("Estimate Features", type="primary"):
-        tracks = load_tracks()
+        tracks = load_tracks(user_id)
         remaining = [t for t in tracks if "energy" not in t]
 
         progress_bar = st.progress(0, text="Estimating features...")
@@ -222,14 +361,18 @@ def render_feature_estimation_ui() -> None:
             else:
                 updated.append(t)
 
-        save_tracks(updated)
-        invalidate_cache()
+        save_tracks(updated, user_id)
+        invalidate_cache(user_id)
 
         newly_done = sum(1 for t in updated if "energy" in t)
         progress_bar.progress(1.0, text="Done!")
         status.success(f"Estimated features for {newly_done}/{len(updated)} tracks.")
         st.rerun()
 
+
+# ---------------------------------------------------------------------------
+# Spotify Connect playback
+# ---------------------------------------------------------------------------
 
 def render_play_on_spotify(playlist: Playlist) -> None:
     """Show device selector and Play on Spotify button via Spotify Connect."""
@@ -249,7 +392,7 @@ def render_play_on_spotify(playlist: Playlist) -> None:
             'display:inline-block;padding:0.5em 1em;background:#1DB954;'
             'color:white;border-radius:24px;text-decoration:none;'
             'font-weight:bold;">'
-            '🎧 Connect to Spotify</a>',
+            '\U0001f3a7 Connect to Spotify</a>',
             unsafe_allow_html=True,
         )
         return
@@ -279,7 +422,7 @@ def render_play_on_spotify(playlist: Playlist) -> None:
             "Open the Spotify app on your phone or computer first, "
             "then click the refresh button."
         )
-        if st.button("🔄 Refresh devices", key="refresh_devices"):
+        if st.button("\U0001f504 Refresh devices", key="refresh_devices"):
             st.rerun()
         return
 
@@ -294,11 +437,11 @@ def render_play_on_spotify(playlist: Playlist) -> None:
     )
     selected_device = devices[selected_idx]
 
-    if st.button("▶ Play on Spotify", type="primary", key="play_spotify"):
+    if st.button("\u25b6 Play on Spotify", type="primary", key="play_spotify"):
         try:
             start_playback(token, track_ids, device_id=selected_device["id"])
             st.success(
-                f"Now playing on **{selected_device['name']}** — "
+                f"Now playing on **{selected_device['name']}** \u2014 "
                 f"{len(track_ids)} tracks queued!"
             )
             st.balloons()
@@ -318,6 +461,10 @@ def render_play_on_spotify(playlist: Playlist) -> None:
         except Exception as exc:
             st.error(f"Playback failed: {exc}")
 
+
+# ---------------------------------------------------------------------------
+# Playlist display
+# ---------------------------------------------------------------------------
 
 def render_playlist(playlist: Playlist) -> None:
     """Display the generated playlist with phase breakdown."""
@@ -361,8 +508,18 @@ def render_playlist(playlist: Playlist) -> None:
         st.divider()
 
 
-def main() -> None:
-    handle_spotify_callback()
+# ---------------------------------------------------------------------------
+# Main app (post-login)
+# ---------------------------------------------------------------------------
+
+def render_app(user_id: str) -> None:
+    """Render the main MindTune application for an authenticated user."""
+    # Sidebar header with user info + logout
+    st.sidebar.markdown(f"**User:** `{user_id}`")
+    if st.sidebar.button("Log out", key="logout_btn"):
+        for k in list(st.session_state.keys()):
+            del st.session_state[k]
+        st.rerun()
 
     st.title("\U0001f3b5 MindTune")
     st.caption(
@@ -370,15 +527,16 @@ def main() -> None:
         "and Russell's circumplex model"
     )
 
-    track_count = get_track_count()
+    track_count = get_track_count(user_id)
+
     if track_count == 0:
-        st.error("No tracks loaded. Add tracks to `src/data/tracks.json`.")
+        render_library_import(user_id)
         st.stop()
 
-    has_features = tracks_have_features()
+    has_features = tracks_have_features(user_id)
 
     if not has_features:
-        render_feature_estimation_ui()
+        render_feature_estimation_ui(user_id)
         st.divider()
         st.info("You can still explore the emotion model below while features are being set up.")
 
@@ -419,7 +577,7 @@ def main() -> None:
     elif vocals_option == "Prefer instrumental":
         prefer_vocals = False
 
-    vibes = get_all_vibes()
+    vibes = get_all_vibes(user_id)
     selected_vibes: list[str] = []
     if vibes:
         selected_vibes = st.sidebar.multiselect("Vibe filter", vibes)
@@ -440,6 +598,7 @@ def main() -> None:
                 playlist = generate_playlist(
                     current=current,
                     target=target,
+                    user_id=user_id,
                     strategy_name=strategy,
                     tracks_per_phase=tracks_per_phase,
                     vibe_keywords=selected_vibes if selected_vibes else None,
@@ -480,7 +639,7 @@ def main() -> None:
 
     with tab3:
         st.subheader(f"Track Library ({track_count} tracks)")
-        tracks = load_tracks()
+        tracks = load_tracks(user_id)
 
         search = st.text_input("Search tracks", "")
         if search:
@@ -513,6 +672,20 @@ def main() -> None:
 
             spotify_url = f"https://open.spotify.com/track/{t.get('id', '')}"
             st.markdown(f"[{t['title']}]({spotify_url}) \u2014 {t['artist']}{features}")
+
+
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
+
+def main() -> None:
+    handle_spotify_callback()
+
+    user_id = get_user_id()
+    if user_id:
+        render_app(user_id)
+    else:
+        render_login()
 
 
 if __name__ == "__main__":

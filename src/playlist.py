@@ -33,19 +33,23 @@ class Playlist:
 def generate_playlist(
     current: Emotion,
     target: Emotion,
+    user_id: str,
     strategy_name: str = "Dynamic",
     tracks_per_phase: int | None = None,
     vibe_keywords: list[str] | None = None,
     prefer_vocals: bool | None = None,
 ) -> Playlist:
-    """Generate a transition playlist from current to target emotion."""
+    """Generate a transition playlist from current to target emotion.
+
+    Only tracks belonging to *user_id* are considered.
+    """
     if tracks_per_phase is None:
         tracks_per_phase = TRACKS_PER_PHASE
 
     strategy_fn = get_strategy(strategy_name)
     phases = strategy_fn(current, target)
 
-    all_tracks = load_tracks()
+    all_tracks = load_tracks(user_id)
     used_ids: set[str] = set()
     playlist_phases: list[PlaylistPhase] = []
 

@@ -1,4 +1,4 @@
-"""Spotify API integration for playback via Spotify Connect."""
+"""Spotify API integration — authentication, library import, and playback."""
 
 import json as _json
 import subprocess
@@ -11,7 +11,7 @@ from src.config import SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET
 SPOTIFY_AUTH_URL = "https://accounts.spotify.com/authorize"
 SPOTIFY_TOKEN_URL = "https://accounts.spotify.com/api/token"
 SPOTIFY_API_BASE = "https://api.spotify.com/v1"
-SCOPES = "user-read-playback-state user-modify-playback-state"
+SCOPES = "user-library-read user-read-playback-state user-modify-playback-state"
 
 
 def get_auth_url(redirect_uri: str) -> str:
@@ -112,6 +112,41 @@ def get_devices(access_token: str) -> list[dict]:
         raise SpotifyAPIError(status, body)
     data = _json.loads(body) if body else {}
     return data.get("devices", [])
+
+
+def fetch_liked_songs(
+    access_token: str,
+    progress_callback: "callable | None" = None,
+) -> list[dict]:
+    """Fetch all of the current user's liked (saved) songs.
+
+    Returns a list of dicts with keys: id, title, artist, album.
+    """
+    tracks: list[dict] = []
+    url = f"{SPOTIFY_API_BASE}/me/tracks?limit=50"
+    page = 0
+
+    while url:
+        status, body = _curl("GET", url, access_token)
+        if status < 200 or status >= 300:
+            raise SpotifyAPIError(status, body)
+        data = _json.loads(body) if body else {}
+        for item in data.get("items", []):
+            t = item.get("track")
+            if not t or not t.get("id"):
+                continue
+            tracks.append({
+                "id": t["id"],
+                "title": t.get("name", ""),
+                "artist": ", ".join(a["name"] for a in t.get("artists", [])),
+                "album": t.get("album", {}).get("name", ""),
+            })
+        page += 1
+        if progress_callback:
+            progress_callback(len(tracks), data.get("total", len(tracks)))
+        url = data.get("next", "")
+
+    return tracks
 
 
 def start_playback(
