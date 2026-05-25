@@ -69,7 +69,10 @@ def handle_spotify_callback() -> None:
         user = get_current_user(token_data["access_token"])
         st.session_state["spotify_user_id"] = user["id"]
         st.session_state["spotify_user_name"] = user.get("display_name", user["id"])
-        st.session_state["user_id"] = user["id"]
+        # Only set user_id if not already logged in (avoids overriding
+        # during import flow when user logged in via Option A)
+        if "user_id" not in st.session_state:
+            st.session_state["user_id"] = user["id"]
     except Exception as exc:
         st.session_state.pop("spotify_token", None)
         st.session_state["_auth_error"] = str(exc)
