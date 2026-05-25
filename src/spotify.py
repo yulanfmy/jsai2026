@@ -61,13 +61,10 @@ def refresh_access_token(refresh_token: str) -> dict:
 
 def get_current_user(access_token: str) -> dict:
     """Fetch the current user's Spotify profile."""
-    resp = requests.get(
-        f"{SPOTIFY_API_BASE}/me",
-        headers={"Authorization": f"Bearer {access_token}"},
-        timeout=15,
-    )
-    resp.raise_for_status()
-    return resp.json()
+    status, body = _curl("GET", f"{SPOTIFY_API_BASE}/me", access_token)
+    if status != 200:
+        raise SpotifyAPIError(status, body)
+    return _json.loads(body)
 
 
 class SpotifyAPIError(Exception):
