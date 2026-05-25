@@ -13,6 +13,8 @@ Key features:
 - **Weighted scoring algorithm** for track selection (energy:3, happiness:3, BPM:2, vibe:1, instrumentalness:2)
 - **Interactive visualization** of the circumplex model and transition paths
 - **Spotify integration** — track library sourced from user's Spotify liked songs
+- **Multi-user support** — each user's library is stored and queried independently
+- **Play on Spotify** via Spotify Connect — send playlists directly to your phone or desktop
 
 ## Architecture
 
@@ -28,8 +30,8 @@ Emotion Input (Current → Target)
          ▼
 ┌──────────────────┐     ┌──────────────────┐
 │ Scoring Algorithm │────▶│  Track Library    │
-│ (Weighted Match)  │     │ (1,498 tracks +  │
-└────────┬─────────┘     │  LLM features)   │
+│ (Weighted Match)  │     │ (per-user stored  │
+└────────┬─────────┘     │  + LLM features)  │
          │               └──────────────────┘
          ▼
 ┌──────────────────┐
@@ -52,17 +54,21 @@ cp .env.example .env
 # Edit .env with your OpenAI API key
 ```
 
-### 3. Estimate audio features
+### 3. Log in and import your library
 
-The track library ships with raw Spotify metadata. Run the ingestion step to estimate audio features (energy, happiness, BPM, etc.) using an LLM:
+Open the app and either:
+- **Connect with Spotify** (recommended) — automatically identifies you and lets you import your liked songs
+- **Enter your Spotify User ID** — if your library was previously imported
+
+### 4. Estimate audio features
+
+After importing your library, estimate audio features using the in-app button, or from the command line:
 
 ```bash
-python -m src.ingest
+python -m src.ingest <your_spotify_user_id>
 ```
 
-Or use the in-app estimation button in the Streamlit UI.
-
-### 4. Run the app
+### 5. Run the app
 
 ```bash
 streamlit run src/app.py
@@ -88,10 +94,13 @@ src/
 ├── scoring.py           # Weighted track scoring algorithm
 ├── playlist.py          # Playlist generation orchestrator
 ├── feature_estimator.py # LLM-based audio feature estimation
-├── tracks.py            # Track database management
+├── tracks.py            # Per-user track database management
 ├── ingest.py            # Batch feature estimation script
+├── spotify.py           # Spotify API (auth, library import, playback)
 └── data/
-    └── tracks.json      # Track library (Spotify liked songs)
+    └── users/           # Per-user track libraries (gitignored)
+        └── <user_id>/
+            └── tracks.json
 ```
 
 ## References

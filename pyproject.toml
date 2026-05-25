@@ -1,0 +1,27 @@
+[project]
+name = "mindtune"
+version = "0.1.0"
+description = "Emotion-transition music recommendation system based on the ISO principle and Russell's circumplex model"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "openai>=1.0.0",
+    "python-dotenv>=1.0.0",
+    "requests>=2.28.0",
+    "streamlit>=1.30.0",
+    "plotly>=5.18.0",
+]
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+
+[tool.ruff.lint.per-file-ignores]
+"src/app.py" = ["E402"]
