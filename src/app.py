@@ -131,17 +131,19 @@ def render_login() -> None:
     with col1:
         st.markdown("#### Option A: Enter your Spotify User ID")
         st.caption("Use this if your library has already been imported.")
-        uid = st.text_input(
-            "Spotify User ID",
-            placeholder="e.g. 31vyyplvkasqpb7cksrua3jep2q4",
-            key="login_user_id_input",
-        )
-        if st.button("Log in", key="login_btn"):
-            if uid.strip():
-                st.session_state["user_id"] = uid.strip()
-                st.rerun()
-            else:
-                st.error("Please enter your Spotify User ID.")
+        with st.form("login_form"):
+            uid = st.text_input(
+                "Spotify User ID",
+                placeholder="e.g. 31vyyplvkasqpb7cksrua3jep2q4",
+                key="login_user_id_input",
+            )
+            submitted = st.form_submit_button("Log in")
+            if submitted:
+                if uid.strip():
+                    st.session_state["user_id"] = uid.strip()
+                    st.rerun()
+                else:
+                    st.error("Please enter your Spotify User ID.")
 
     with col2:
         st.markdown("#### Option B: Connect with Spotify")
