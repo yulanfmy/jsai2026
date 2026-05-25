@@ -157,7 +157,14 @@ def start_playback(
     """Start playback of the given tracks on a Spotify Connect device.
 
     If *device_id* is ``None`` the user's currently active device is used.
+    Shuffle is disabled first to ensure correct track ordering.
     """
+    # Disable shuffle to preserve playlist order
+    shuffle_url = f"{SPOTIFY_API_BASE}/me/player/shuffle?state=false"
+    if device_id:
+        shuffle_url += f"&device_id={device_id}"
+    _curl("PUT", shuffle_url, access_token)
+
     uris = [f"spotify:track:{tid}" for tid in track_ids]
     url = f"{SPOTIFY_API_BASE}/me/player/play"
     if device_id:
