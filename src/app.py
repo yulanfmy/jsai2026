@@ -70,8 +70,9 @@ def handle_spotify_callback() -> None:
         st.session_state["spotify_user_id"] = user["id"]
         st.session_state["spotify_user_name"] = user.get("display_name", user["id"])
         st.session_state["user_id"] = user["id"]
-    except Exception:
+    except Exception as exc:
         st.session_state.pop("spotify_token", None)
+        st.session_state["_auth_error"] = str(exc)
     st.query_params.clear()
 
 
@@ -116,6 +117,15 @@ def render_login() -> None:
         "Emotion-transition music recommendation based on the ISO principle "
         "and Russell's circumplex model"
     )
+
+    # Show auth errors from failed OAuth callback
+    auth_err = st.session_state.pop("_auth_error", None)
+    if auth_err:
+        st.error(
+            f"Spotify login failed: {auth_err}\n\n"
+            "**Tip:** Make sure you open this app at the same URL as the "
+            f"redirect URI: `{SPOTIFY_REDIRECT_URI}`"
+        )
 
     st.markdown("---")
     st.subheader("Welcome! Please log in to get started.")
