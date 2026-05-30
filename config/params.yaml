@@ -1,0 +1,24 @@
+# MindTune v2 — fixed parameters (§0 of spec)
+# All parameters via config; no hard-coded numbers in source.
+# These are theory-informed initial values (Appendix B), to be calibrated
+# from user feedback — not empirically optimal.
+
+# Path planning
+N: 6              # stages (tracks) — fixed
+K_default: 5      # candidates per stage — user-adjustable, default 5
+alpha: 0.6        # soft-sequencing lead-axis concentration
+
+# Viterbi DP
+lambda: 0.4       # weight of the transition term as a whole
+gamma: 0.2        # weight of the arc-direction term in target_loss
+
+# Musical continuity (DJ heuristics — fixed, never learned)
+w1: 0.4           # Camelot key-compatibility weight
+w2: 0.4           # tempo-compatibility weight
+w3: 0.2           # arc-join weight
+
+# Start-state protection (§4.1)
+start_protection:
+  - Angry
+  - Anxious
+  - Fear

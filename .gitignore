@@ -10,3 +10,6 @@ venv/
 .ruff_cache/
 src/data/users/
 src/data/tracks.json
+cache/
+models/
+*.parquet
