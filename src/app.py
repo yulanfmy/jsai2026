@@ -626,6 +626,10 @@ def render_app(user_id: str) -> None:
     # Sidebar: Algorithm params
     st.sidebar.header("Algorithm Settings")
     st.sidebar.caption("Dynamic path planning (v2)")
+    N = st.sidebar.slider(
+        "Number of stages (N)", 3, 12, PARAMS.N,
+        help="How many stages in the emotion transition path"
+    )
     K = st.sidebar.slider(
         "Candidates per stage (K)", 3, 20, PARAMS.K_default,
         help="Higher K = more candidate tracks considered per stage"
@@ -636,12 +640,42 @@ def render_app(user_id: str) -> None:
         st.caption("Legacy 2D strategy from v1. Use for comparison only.")
         v1_enabled = st.checkbox("Enable v1 mode", value=False, key="v1_mode")
 
+    # Sidebar: Library management
     st.sidebar.markdown("---")
+    st.sidebar.header("Library")
+    st.sidebar.caption(f"Track library: {track_count} tracks")
     st.sidebar.caption(
         f"Feature store: {fs_count} tracks" if has_store
         else "Feature store: not built"
     )
-    st.sidebar.caption(f"Track library: {track_count} tracks")
+    token = ensure_spotify_token()
+    if token:
+        if st.sidebar.button("\U0001f504 Refresh Library from Spotify", key="refresh_lib"):
+            with st.sidebar:
+                with st.spinner("Fetching liked songs..."):
+                    try:
+                        tracks = fetch_liked_songs(token)
+                        save_tracks(tracks, user_id)
+                        invalidate_cache(user_id)
+                        st.sidebar.success(f"Updated! {len(tracks)} tracks imported.")
+                        # Rebuild feature store automatically
+                        from src.feature_extraction.build_pipeline import build
+                        build(user_id=user_id)
+                        st.rerun()
+                    except Exception as exc:
+                        st.sidebar.error(f"Refresh failed: {exc}")
+    else:
+        has_creds = SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET
+        if has_creds:
+            auth_url = get_auth_url(SPOTIFY_REDIRECT_URI)
+            st.sidebar.markdown(
+                f'<a href="{auth_url}" target="_self" style="'
+                'display:inline-block;padding:0.4em 0.8em;background:#1DB954;'
+                'color:white;border-radius:16px;text-decoration:none;'
+                'font-size:0.85em;margin-top:0.3em;">'
+                '\U0001f3a7 Connect Spotify to refresh</a>',
+                unsafe_allow_html=True,
+            )
 
     # Main tabs
     tab1, tab2, tab3 = st.tabs(
@@ -692,6 +726,7 @@ def render_app(user_id: str) -> None:
                             target_label=target_name,
                             user_id=user_id,
                             K=K,
+                            N=N,
                         )
                         st.session_state["v2_result"] = result
 

@@ -65,13 +65,14 @@ def recommend_v2(
     target_label: str,
     user_id: str | None = None,
     K: int | None = None,
+    N: int | None = None,
     alpha: float | None = None,
     lam: float | None = None,
     gamma: float | None = None,
 ) -> dict:
     """Full v2 recommendation pipeline.
 
-    Input: two emotion labels → output 6 tracks with stage explanations.
+    Input: two emotion labels → output N tracks with stage explanations.
 
     Returns dict with:
         source, target, axis_order, stage_alloc, stages, tracks,
@@ -79,6 +80,8 @@ def recommend_v2(
     """
     if K is None:
         K = PARAMS.K_default
+    if N is None:
+        N = PARAMS.N
     if alpha is None:
         alpha = PARAMS.alpha
     if lam is None:
@@ -91,8 +94,8 @@ def recommend_v2(
 
     # 1. Path planning
     axis_order, delta = compute_axis_order(source, target, source_label)
-    stage_alloc = allocate_stages(delta, axis_order)
-    progress_matrix = build_progress_matrix(axis_order, stage_alloc, alpha)
+    stage_alloc = allocate_stages(delta, axis_order, N)
+    progress_matrix = build_progress_matrix(axis_order, stage_alloc, alpha, N)
     stages = compute_targets(source, target, delta, progress_matrix, axis_order, stage_alloc)
 
     # 2. Load tracks from feature store
