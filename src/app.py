@@ -237,6 +237,24 @@ def render_circumplex_3d(
     fig = go.Figure()
 
     emotions = list_emotions()
+
+    # Per-emotion text positions to avoid overlapping labels
+    _label_pos: dict[str, str] = {
+        "Angry": "top left",
+        "Fear": "middle left",
+        "Anxious": "bottom left",
+        "Restless": "top right",
+        "Sad": "bottom left",
+        "Melancholy": "bottom right",
+        "Tired": "bottom center",
+        "Calm": "top right",
+        "Peaceful": "bottom right",
+        "Focused": "top center",
+        "Confident": "middle right",
+        "Excited": "top right",
+    }
+    positions = [_label_pos.get(e.name, "top center") for e in emotions]
+
     fig.add_trace(
         go.Scatter3d(
             x=[e.V for e in emotions],
@@ -244,8 +262,9 @@ def render_circumplex_3d(
             z=[e.T for e in emotions],
             mode="markers+text",
             text=[e.name for e in emotions],
-            textposition="top center",
-            marker=dict(size=5, color="#888"),
+            textposition=positions,
+            textfont=dict(size=12),
+            marker=dict(size=7, color="#888"),
             name="Emotions",
             hovertemplate="%{text}<br>V: %{x:.1f}<br>E: %{y:.1f}<br>T: %{z:.1f}<extra></extra>",
         )
@@ -258,7 +277,8 @@ def render_circumplex_3d(
                 mode="markers+text",
                 text=[f"NOW: {current.name}"],
                 textposition="top center",
-                marker=dict(size=10, color="#FF6B6B", symbol="diamond"),
+                textfont=dict(size=13, color="#FF6B6B"),
+                marker=dict(size=12, color="#FF6B6B", symbol="diamond"),
                 name="Current",
             )
         )
@@ -269,7 +289,8 @@ def render_circumplex_3d(
                 mode="markers+text",
                 text=[f"GOAL: {target.name}"],
                 textposition="top center",
-                marker=dict(size=10, color="#4ECDC4", symbol="diamond"),
+                textfont=dict(size=13, color="#4ECDC4"),
+                marker=dict(size=12, color="#4ECDC4", symbol="diamond"),
                 name="Target",
             )
         )
@@ -314,15 +335,17 @@ def render_circumplex_3d(
             )
 
     fig.update_layout(
-        title="3D Emotion Space (V/E/T)",
+        title=dict(text="3D Emotion Space (V/E/T)", font=dict(size=18)),
         scene=dict(
-            xaxis=dict(title="Valence (V)", range=[-1.2, 1.2]),
-            yaxis=dict(title="Energy Arousal (E)", range=[-1.2, 1.2]),
-            zaxis=dict(title="Tension Arousal (T)", range=[-1.2, 1.2]),
+            xaxis=dict(title="Valence (V)", range=[-1.3, 1.3]),
+            yaxis=dict(title="Energy Arousal (E)", range=[-1.3, 1.3]),
+            zaxis=dict(title="Tension Arousal (T)", range=[-1.3, 1.3]),
+            aspectmode="cube",
         ),
-        height=600,
+        height=800,
         showlegend=True,
         template="plotly_dark",
+        margin=dict(l=0, r=0, t=40, b=0),
     )
     return fig
 
