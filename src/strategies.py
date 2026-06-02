@@ -34,64 +34,64 @@ def _bpm_range(arousal: float, valence: float) -> tuple[int, int]:
 
 
 def arousal_first(current: Emotion, target: Emotion) -> list[Phase]:
-    """Adjust arousal first, then shift valence."""
-    mid_arousal = target.arousal
-    mid_valence = current.valence
-    bpm1 = _bpm_range(_lerp(current.arousal, mid_arousal, 0.5), current.valence)
-    bpm2 = _bpm_range(mid_arousal, _lerp(current.valence, target.valence, 0.5))
-    bpm3 = _bpm_range(target.arousal, target.valence)
+    """Adjust arousal (E) first, then shift valence (V)."""
+    mid_arousal = target.E
+    mid_valence = current.V
+    bpm1 = _bpm_range(_lerp(current.E, mid_arousal, 0.5), current.V)
+    bpm2 = _bpm_range(mid_arousal, _lerp(current.V, target.V, 0.5))
+    bpm3 = _bpm_range(target.E, target.V)
     return [
         Phase(
             "Adjust Arousal",
-            _lerp(current.arousal, mid_arousal, 0.5),
-            current.valence,
+            _lerp(current.E, mid_arousal, 0.5),
+            current.V,
             bpm1[0],
             bpm1[1],
         ),
         Phase(
             "Shift Valence",
             mid_arousal,
-            _lerp(mid_valence, target.valence, 0.5),
+            _lerp(mid_valence, target.V, 0.5),
             bpm2[0],
             bpm2[1],
         ),
-        Phase("Reach Target", target.arousal, target.valence, bpm3[0], bpm3[1]),
+        Phase("Reach Target", target.E, target.V, bpm3[0], bpm3[1]),
     ]
 
 
 def valence_first(current: Emotion, target: Emotion) -> list[Phase]:
-    """Shift valence first, then adjust arousal."""
-    mid_arousal = current.arousal
-    mid_valence = target.valence
-    bpm1 = _bpm_range(current.arousal, _lerp(current.valence, mid_valence, 0.5))
-    bpm2 = _bpm_range(_lerp(current.arousal, target.arousal, 0.5), mid_valence)
-    bpm3 = _bpm_range(target.arousal, target.valence)
+    """Shift valence (V) first, then adjust arousal (E)."""
+    mid_arousal = current.E
+    mid_valence = target.V
+    bpm1 = _bpm_range(current.E, _lerp(current.V, mid_valence, 0.5))
+    bpm2 = _bpm_range(_lerp(current.E, target.E, 0.5), mid_valence)
+    bpm3 = _bpm_range(target.E, target.V)
     return [
         Phase(
             "Shift Valence",
-            current.arousal,
-            _lerp(current.valence, mid_valence, 0.5),
+            current.E,
+            _lerp(current.V, mid_valence, 0.5),
             bpm1[0],
             bpm1[1],
         ),
         Phase(
             "Adjust Arousal",
-            _lerp(mid_arousal, target.arousal, 0.5),
+            _lerp(mid_arousal, target.E, 0.5),
             mid_valence,
             bpm2[0],
             bpm2[1],
         ),
-        Phase("Reach Target", target.arousal, target.valence, bpm3[0], bpm3[1]),
+        Phase("Reach Target", target.E, target.V, bpm3[0], bpm3[1]),
     ]
 
 
 def linear(current: Emotion, target: Emotion) -> list[Phase]:
-    """Change arousal and valence simultaneously at equal pace."""
+    """Change arousal (E) and valence (V) simultaneously at equal pace."""
     phases = []
     for i, label in enumerate(["Begin Transition", "Mid Transition", "Reach Target"], 1):
-        t = i / 3.0
-        a = _lerp(current.arousal, target.arousal, t)
-        v = _lerp(current.valence, target.valence, t)
+        frac = i / 3.0
+        a = _lerp(current.E, target.E, frac)
+        v = _lerp(current.V, target.V, frac)
         bpm = _bpm_range(a, v)
         phases.append(Phase(label, a, v, bpm[0], bpm[1]))
     return phases
@@ -99,8 +99,8 @@ def linear(current: Emotion, target: Emotion) -> list[Phase]:
 
 def dynamic(current: Emotion, target: Emotion) -> list[Phase]:
     """Automatically prioritize the dimension with the larger gap."""
-    arousal_gap = abs(target.arousal - current.arousal)
-    valence_gap = abs(target.valence - current.valence)
+    arousal_gap = abs(target.E - current.E)
+    valence_gap = abs(target.V - current.V)
     if arousal_gap >= valence_gap:
         return arousal_first(current, target)
     return valence_first(current, target)
