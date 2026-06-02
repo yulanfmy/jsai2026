@@ -162,6 +162,12 @@ def start_playback(
         shuffle_url += f"&device_id={device_id}"
     _curl("PUT", shuffle_url, access_token)
 
+    # Disable repeat so playback stops after the last track
+    repeat_url = f"{SPOTIFY_API_BASE}/me/player/repeat?state=off"
+    if device_id:
+        repeat_url += f"&device_id={device_id}"
+    _curl("PUT", repeat_url, access_token)
+
     uris = [f"spotify:track:{tid}" for tid in track_ids]
     url = f"{SPOTIFY_API_BASE}/me/player/play"
     if device_id:
