@@ -1,8 +1,9 @@
 """Top-K candidate filter with arc direction and start-state protection (§6).
 
 target_loss(track, stage, gamma=0.2):
-  = position_distance + γ · arc_direction_mismatch
-  - position: 3D Euclidean distance (V,E,T) between track and stage target
+  = position_distance_z + γ · arc_direction_mismatch
+  - position_z: 3D Euclidean distance in z-scored (V,E,T) space so that
+    no single axis dominates due to variance differences (§3.5).
   - arc_dir_mismatch: 1 - cos(track_arc_dir, expected_dir), range [0,2]
 
 top_k_filter(tracks, stages, source_label, K=5):
@@ -31,24 +32,39 @@ def target_loss(
     track: dict,
     stage: StageTarget,
     gamma: float | None = None,
+    zscore_params: dict | None = None,
 ) -> float:
     """Compute the target loss for a track at a given stage.
 
-    Returns: position_distance + γ · arc_direction_mismatch
+    Returns: position_distance_z + γ · arc_direction_mismatch
+
+    When ``zscore_params`` is provided (recommended), the position distance
+    is computed in z-scored space so no single axis dominates.
     """
     if gamma is None:
         gamma = PARAMS.gamma
 
-    # Position distance (3D Euclidean)
-    tV = track.get("V", 0.0)
-    tE = track.get("E", 0.0)
-    tT = track.get("T", 0.0)
-    pos = math.sqrt((tV - stage.V) ** 2 + (tE - stage.E) ** 2 + (tT - stage.T) ** 2)
+    # Position distance in z-scored space (§3.5 / §6)
+    if zscore_params is not None:
+        from src.feature_store import standardize
+        tV = float(track.get("zV", 0.0))
+        tE = float(track.get("zE", 0.0))
+        tT = float(track.get("zT", 0.0))
+        sV, sE, sT = standardize(stage.V, stage.E, stage.T, zscore_params=zscore_params)
+    else:
+        tV = float(track.get("V", 0.0))
+        tE = float(track.get("E", 0.0))
+        tT = float(track.get("T", 0.0))
+        sV, sE, sT = stage.V, stage.E, stage.T
 
-    # Arc direction mismatch
+    pos = math.sqrt((tV - sV) ** 2 + (tE - sE) ** 2 + (tT - sT) ** 2)
+
+    # Arc direction mismatch (raw space — cosine is scale-invariant)
+    raw_E = float(track.get("E", 0.0))
+    raw_T = float(track.get("T", 0.0))
     track_dir = (
-        track.get("arc_end_E", tE) - track.get("arc_start_E", tE),
-        track.get("arc_end_T", tT) - track.get("arc_start_T", tT),
+        float(track.get("arc_end_E", raw_E)) - float(track.get("arc_start_E", raw_E)),
+        float(track.get("arc_end_T", raw_T)) - float(track.get("arc_start_T", raw_T)),
     )
     expected_dir = (stage.expected_dir_E, stage.expected_dir_T)
     cos_sim = _cosine_similarity(track_dir, expected_dir)
@@ -63,6 +79,7 @@ def top_k_filter(
     source_label: str,
     K: int | None = None,
     gamma: float | None = None,
+    zscore_params: dict | None = None,
 ) -> list[list[dict]]:
     """Filter to top-K candidates per stage.
 
@@ -72,6 +89,7 @@ def top_k_filter(
         source_label: source emotion label (for start-state protection).
         K: candidates per stage (default from params).
         gamma: arc-direction weight (default from params).
+        zscore_params: persisted μ/σ for z-score distance (§3.5).
 
     Returns:
         List of K candidate lists, one per stage.
@@ -99,7 +117,7 @@ def top_k_filter(
                 pool = filtered
 
         # Score all tracks and take top-K
-        scored = [(target_loss(t, stage, gamma), t) for t in pool]
+        scored = [(target_loss(t, stage, gamma, zscore_params), t) for t in pool]
         scored.sort(key=lambda x: x[0])
         top_k = [t for _, t in scored[:K]]
 

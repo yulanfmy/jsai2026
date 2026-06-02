@@ -53,6 +53,7 @@ def viterbi_select(
     stages: list[StageTarget],
     lam: float | None = None,
     gamma: float | None = None,
+    zscore_params: dict | None = None,
 ) -> list[dict]:
     """Viterbi DP — forward recursion + backtrack.
 
@@ -61,6 +62,7 @@ def viterbi_select(
         stages: N StageTarget objects.
         lam: transition weight λ (default from params).
         gamma: arc-direction weight γ (default from params).
+        zscore_params: persisted μ/σ for z-score distance (§3.5).
 
     Returns:
         List of N selected tracks (one per stage), globally optimized.
@@ -82,7 +84,7 @@ def viterbi_select(
     # Stage 1: no transition term
     stage1_costs: list[float] = []
     for j, cand in enumerate(candidates[0]):
-        c = target_loss(cand, stages[0], gamma)
+        c = target_loss(cand, stages[0], gamma, zscore_params)
         stage1_costs.append(c)
     cost.append(stage1_costs)
     back.append([-1] * len(candidates[0]))  # no predecessor
@@ -93,7 +95,7 @@ def viterbi_select(
         stage_back: list[int] = []
 
         for j, cand_j in enumerate(candidates[i]):
-            tl_j = target_loss(cand_j, stages[i], gamma)
+            tl_j = target_loss(cand_j, stages[i], gamma, zscore_params)
 
             # Find best predecessor a at stage i-1
             best_total = math.inf
@@ -133,6 +135,7 @@ def greedy_select(
     candidates: list[list[dict]],
     stages: list[StageTarget],
     gamma: float | None = None,
+    zscore_params: dict | None = None,
 ) -> list[dict]:
     """Greedy baseline (for comparison with Viterbi).
 
@@ -144,6 +147,6 @@ def greedy_select(
 
     selected: list[dict] = []
     for i, stage in enumerate(stages):
-        best = min(candidates[i], key=lambda t: target_loss(t, stage, gamma))
+        best = min(candidates[i], key=lambda t: target_loss(t, stage, gamma, zscore_params))
         selected.append(best)
     return selected

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from src.config_loader import PARAMS
 from src.emotions import Emotion, get_emotion
-from src.feature_store import get_all_for_user
+from src.feature_store import get_all_for_user, get_zscore_params
 from src.planning.axis_order import compute_axis_order
 from src.planning.stage_alloc import allocate_stages
 from src.planning.progress_matrix import build_progress_matrix
@@ -22,6 +22,7 @@ def deduplicate(
     candidates: list[list[dict]],
     stages: list[StageTarget],
     gamma: float | None = None,
+    zscore_params: dict | None = None,
 ) -> list[dict]:
     """Remove duplicates by swapping to next-best candidate.
 
@@ -41,7 +42,7 @@ def deduplicate(
             stage_candidates = candidates[i]
             sorted_cands = sorted(
                 stage_candidates,
-                key=lambda t: target_loss(t, stages[i], gamma),
+                key=lambda t: target_loss(t, stages[i], gamma, zscore_params),
             )
             replaced = False
             for cand in sorted_cands:
@@ -92,7 +93,7 @@ def recommend_v2(
     source = get_emotion(source_label)
     target = get_emotion(target_label)
 
-    # 1. Path planning
+    # 1. Path planning (raw coordinate space)
     axis_order, delta = compute_axis_order(source, target, source_label)
     stage_alloc = allocate_stages(delta, axis_order, N)
     progress_matrix = build_progress_matrix(axis_order, stage_alloc, alpha, N)
@@ -113,14 +114,17 @@ def recommend_v2(
             "tracks": [],
         }
 
-    # 3. Top-K candidate filter
-    candidates = top_k_filter(all_tracks, stages, source_label, K, gamma)
+    # Load z-score params (§3.5) — same μ/σ for tracks AND targets
+    zscore_params = get_zscore_params(user_id)
+
+    # 3. Top-K candidate filter (distance in z-space)
+    candidates = top_k_filter(all_tracks, stages, source_label, K, gamma, zscore_params)
 
     # 4. Viterbi DP
-    selected = viterbi_select(candidates, stages, lam, gamma)
+    selected = viterbi_select(candidates, stages, lam, gamma, zscore_params)
 
     # 5. Deduplication
-    selected = deduplicate(selected, candidates, stages, gamma)
+    selected = deduplicate(selected, candidates, stages, gamma, zscore_params)
 
     # 6. Assemble output
     output_tracks: list[dict] = []
