@@ -25,6 +25,7 @@ from src.config import (
 )
 from src.config_loader import PARAMS
 from src.emotions import Emotion, get_emotion, list_emotions
+from src.i18n import t, emotion_name
 from src.spotify import (
     SpotifyAPIError,
     exchange_code_for_token,
@@ -45,6 +46,11 @@ from src.tracks import (
 )
 
 st.set_page_config(page_title="MindTune", page_icon="\U0001f3b5", layout="wide")
+
+
+def _lang() -> str:
+    """Return the current UI language code ('en' or 'ja')."""
+    return st.session_state.get("lang", "en")
 
 
 # ---------------------------------------------------------------------------
@@ -107,68 +113,70 @@ def get_user_id() -> str | None:
 # ---------------------------------------------------------------------------
 
 def render_login() -> None:
-    st.title("\U0001f3b5 MindTune")
-    st.caption(
-        "Emotion-transition music recommendation using 3D emotion model "
-        "(V/E/T) with dynamic path planning and Viterbi DP"
+    L = _lang()
+
+    # Language toggle on login page too
+    lang_options = {"English": "en", "日本語": "ja"}
+    lang_label = [k for k, v in lang_options.items() if v == L][0]
+    selected = st.radio(
+        t("language", L), list(lang_options.keys()),
+        index=list(lang_options.keys()).index(lang_label),
+        horizontal=True, key="login_lang_radio",
     )
+    if lang_options[selected] != L:
+        st.session_state["lang"] = lang_options[selected]
+        st.rerun()
+
+    st.title(t("app_title", L))
+    st.caption(t("app_subtitle", L))
 
     auth_err = st.session_state.pop("_auth_error", None)
     if auth_err:
         st.error(
-            f"Spotify login failed: {auth_err}\n\n"
-            f"**Tip:** Make sure you open this app at the same URL as the "
-            f"redirect URI: `{SPOTIFY_REDIRECT_URI}`"
+            t("login_failed", L, error=auth_err) + "\n\n"
+            + t("login_tip", L, uri=SPOTIFY_REDIRECT_URI)
         )
 
     st.markdown("---")
-    st.subheader("Welcome! Please log in to get started.")
-    st.write(
-        "MindTune generates personalised emotion-transition playlists from "
-        "**your own** Spotify library. Each user's music is kept private."
-    )
+    st.subheader(t("welcome", L))
+    st.write(t("welcome_desc", L))
 
     has_creds = SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET
     col1, col2 = st.columns(2)
 
     with col1:
-        st.markdown("#### Option A: Enter your Spotify User ID")
-        st.caption("Use this if your library has already been imported.")
+        st.markdown(t("option_a_title", L))
+        st.caption(t("option_a_caption", L))
         with st.form("login_form"):
             uid = st.text_input(
-                "Spotify User ID",
+                t("spotify_user_id", L),
                 placeholder="e.g. 31vyyplvkasqpb7cksrua3jep2q4",
                 key="login_user_id_input",
             )
-            submitted = st.form_submit_button("Log in")
+            submitted = st.form_submit_button(t("log_in", L))
             if submitted:
                 if uid.strip():
                     st.session_state["user_id"] = uid.strip()
                     st.rerun()
                 else:
-                    st.error("Please enter your Spotify User ID.")
+                    st.error(t("enter_user_id_error", L))
 
     with col2:
-        st.markdown("#### Option B: Connect with Spotify")
-        st.caption(
-            "Log in with your Spotify account to automatically identify "
-            "yourself and import your library."
-        )
+        st.markdown(t("option_b_title", L))
+        st.caption(t("option_b_caption", L))
         if has_creds:
             auth_url = get_auth_url(SPOTIFY_REDIRECT_URI)
+            btn_text = t("connect_spotify", L)
             st.markdown(
                 f'<a href="{auth_url}" target="_self" style="'
                 'display:inline-block;padding:0.6em 1.2em;background:#1DB954;'
                 'color:white;border-radius:24px;text-decoration:none;'
-                'font-weight:bold;margin-top:0.5em;">'
-                '\U0001f3a7 Connect with Spotify</a>',
+                f'font-weight:bold;margin-top:0.5em;">'
+                f'{btn_text}</a>',
                 unsafe_allow_html=True,
             )
         else:
-            st.info(
-                "Set `SPOTIFY_CLIENT_ID` and `SPOTIFY_CLIENT_SECRET` in "
-                "`.env` to enable Spotify login."
-            )
+            st.info(t("set_spotify_creds", L))
 
 
 # ---------------------------------------------------------------------------
@@ -176,52 +184,49 @@ def render_login() -> None:
 # ---------------------------------------------------------------------------
 
 def render_library_import(user_id: str) -> None:
-    st.info(
-        f"No track library found for user **{user_id}**. "
-        "Import your Spotify liked songs to get started."
-    )
+    L = _lang()
+    st.info(t("no_library", L, user_id=user_id))
     token = ensure_spotify_token()
     if not token:
         has_creds = SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET
         if has_creds:
             auth_url = get_auth_url(SPOTIFY_REDIRECT_URI)
+            btn_text = t("connect_to_import", L)
             st.markdown(
                 f'<a href="{auth_url}" target="_self" style="'
                 'display:inline-block;padding:0.5em 1em;background:#1DB954;'
                 'color:white;border-radius:24px;text-decoration:none;'
-                'font-weight:bold;">'
-                '\U0001f3a7 Connect to Spotify to import your library</a>',
+                f'font-weight:bold;">'
+                f'{btn_text}</a>',
                 unsafe_allow_html=True,
             )
         else:
-            st.warning(
-                "Set Spotify credentials in `.env` to enable automatic import."
-            )
+            st.warning(t("set_creds_import", L))
         return
 
     user_name = st.session_state.get("spotify_user_name", user_id)
-    st.caption(f"Authenticated as **{user_name}**")
+    st.caption(t("authenticated_as", L, name=user_name))
 
-    if st.button("Import my Spotify liked songs", type="primary", key="import_lib"):
-        progress = st.progress(0, text="Fetching liked songs from Spotify...")
+    if st.button(t("import_liked_songs", L), type="primary", key="import_lib"):
+        progress = st.progress(0, text=t("fetching_liked_songs", L))
         status = st.empty()
 
         def on_progress(done: int, total: int) -> None:
             pct = done / total if total else 0
-            progress.progress(pct, text=f"Fetched {done}/{total} songs...")
+            progress.progress(pct, text=t("fetched_songs", L, done=done, total=total))
             status.text(f"Page {done // 50 + 1}...")
 
         try:
             tracks = fetch_liked_songs(token, progress_callback=on_progress)
             save_tracks(tracks, user_id)
             invalidate_cache(user_id)
-            progress.progress(1.0, text="Done!")
-            status.success(f"Imported {len(tracks)} tracks into your library.")
+            progress.progress(1.0, text=t("done", L))
+            status.success(t("imported_tracks", L, count=len(tracks)))
             st.rerun()
         except SpotifyAPIError as exc:
-            st.error(f"Spotify API error: {exc}")
+            st.error(t("spotify_api_error", L, error=exc))
         except Exception as exc:
-            st.error(f"Import failed: {exc}")
+            st.error(t("import_failed", L, error=exc))
 
 
 # ---------------------------------------------------------------------------
@@ -234,6 +239,7 @@ def render_circumplex_3d(
     v2_result: dict | None = None,
 ) -> go.Figure:
     """Draw the 3D V/E/T emotion space with transition path."""
+    L = _lang()
     fig = go.Figure()
 
     emotions = list_emotions()
@@ -261,11 +267,11 @@ def render_circumplex_3d(
             y=[e.E for e in emotions],
             z=[e.T for e in emotions],
             mode="markers+text",
-            text=[e.name for e in emotions],
+            text=[emotion_name(e.name, L) for e in emotions],
             textposition=positions,
             textfont=dict(size=12),
             marker=dict(size=7, color="#888"),
-            name="Emotions",
+            name=t("legend_emotions", L),
             hovertemplate="%{text}<br>V: %{x:.1f}<br>E: %{y:.1f}<br>T: %{z:.1f}<extra></extra>",
         )
     )
@@ -275,11 +281,11 @@ def render_circumplex_3d(
             go.Scatter3d(
                 x=[current.V], y=[current.E], z=[current.T],
                 mode="markers+text",
-                text=[f"NOW: {current.name}"],
+                text=[t("now_label", L, name=emotion_name(current.name, L))],
                 textposition="top center",
                 textfont=dict(size=13, color="#FF6B6B"),
                 marker=dict(size=12, color="#FF6B6B", symbol="diamond"),
-                name="Current",
+                name=t("legend_current", L),
             )
         )
     if target:
@@ -287,11 +293,11 @@ def render_circumplex_3d(
             go.Scatter3d(
                 x=[target.V], y=[target.E], z=[target.T],
                 mode="markers+text",
-                text=[f"GOAL: {target.name}"],
+                text=[t("goal_label", L, name=emotion_name(target.name, L))],
                 textposition="top center",
                 textfont=dict(size=13, color="#4ECDC4"),
                 marker=dict(size=12, color="#4ECDC4", symbol="diamond"),
-                name="Target",
+                name=t("legend_target", L),
             )
         )
 
@@ -301,7 +307,9 @@ def render_circumplex_3d(
             path_v = [current.V] + [s["V"] for s in stages]
             path_e = [current.E] + [s["E"] for s in stages]
             path_t = [current.T] + [s["T"] for s in stages]
-            labels = ["Start"] + [f"Stage {s['stage']} [{s['lead_axis']}]" for s in stages]
+            labels = [t("start", L)] + [
+                t("stage_label", L, n=s["stage"], axis=s["lead_axis"]) for s in stages
+            ]
 
             fig.add_trace(
                 go.Scatter3d(
@@ -310,7 +318,7 @@ def render_circumplex_3d(
                     line=dict(width=4, color="#FFD93D"),
                     marker=dict(size=4, color="#FFD93D"),
                     text=labels,
-                    name="Transition Path",
+                    name=t("legend_path", L),
                     hovertemplate="%{text}<br>V: %{x:.2f}<br>E: %{y:.2f}<br>T: %{z:.2f}<extra></extra>",
                 )
             )
@@ -329,17 +337,17 @@ def render_circumplex_3d(
                     mode="markers",
                     marker=dict(size=6, color="#4ECDC4", symbol="circle", opacity=0.8),
                     text=t_labels,
-                    name="Selected Tracks",
+                    name=t("legend_tracks", L),
                     hovertemplate="%{text}<br>V: %{x:.2f}<br>E: %{y:.2f}<br>T: %{z:.2f}<extra></extra>",
                 )
             )
 
     fig.update_layout(
-        title=dict(text="3D Emotion Space (V/E/T)", font=dict(size=18)),
+        title=dict(text=t("chart_title", L), font=dict(size=18)),
         scene=dict(
-            xaxis=dict(title="Valence (V)", range=[-1.3, 1.3]),
-            yaxis=dict(title="Energy Arousal (E)", range=[-1.3, 1.3]),
-            zaxis=dict(title="Tension Arousal (T)", range=[-1.3, 1.3]),
+            xaxis=dict(title=t("axis_valence", L), range=[-1.3, 1.3]),
+            yaxis=dict(title=t("axis_energy", L), range=[-1.3, 1.3]),
+            zaxis=dict(title=t("axis_tension", L), range=[-1.3, 1.3]),
             aspectmode="cube",
         ),
         height=800,
@@ -372,28 +380,24 @@ def _feature_store_count(user_id: str) -> int:
 
 def render_feature_store_build(user_id: str) -> None:
     """Show UI for building the feature store from v1 tracks."""
-    st.warning(
-        "The v2 feature store has not been built for this user yet. "
-        "Build it to enable v2 playlist generation."
-    )
-    st.info(
-        "This will bootstrap v2 features (V/E/T + arc vectors) from the "
-        "existing v1 track features and build the feature store. This takes "
-        "about 30 seconds."
-    )
+    L = _lang()
+    st.warning(t("fs_not_built", L))
+    st.info(t("fs_build_info", L))
 
-    if st.button("Build Feature Store", type="primary", key="build_fs"):
-        with st.spinner("Building feature store..."):
+    if st.button(t("build_feature_store", L), type="primary", key="build_fs"):
+        with st.spinner(t("building_fs", L)):
             try:
                 from src.feature_extraction.build_pipeline import build
                 metrics = build(user_id=user_id)
                 st.success(
-                    f"Feature store built with {metrics['n_tracks']} tracks! "
-                    f"Zenodo coverage: {metrics.get('matched', 0)}/{metrics.get('total', 0)}"
+                    t("fs_built", L,
+                      count=metrics["n_tracks"],
+                      matched=metrics.get("matched", 0),
+                      total=metrics.get("total", 0))
                 )
                 st.rerun()
             except Exception as exc:
-                st.error(f"Build failed: {exc}")
+                st.error(t("build_failed", L, error=exc))
 
 
 # ---------------------------------------------------------------------------
@@ -401,51 +405,43 @@ def render_feature_store_build(user_id: str) -> None:
 # ---------------------------------------------------------------------------
 
 def render_feature_estimation_ui(user_id: str) -> None:
-    st.warning(
-        f"Your track library has {get_track_count(user_id)} tracks but audio features "
-        "have not been estimated yet. Run the feature estimation to enable "
-        "playlist generation."
-    )
+    L = _lang()
+    st.warning(t("features_not_estimated", L, count=get_track_count(user_id)))
 
     if not OPENAI_API_KEY:
-        st.error(
-            "Set `OPENAI_API_KEY` in your `.env` file to enable LLM feature estimation."
-        )
+        st.error(t("set_openai_key", L))
         return
 
-    st.info(
-        "This will use OpenAI to estimate energy, happiness, BPM, and other "
-        "features for each track based on its metadata."
-    )
+    st.info(t("estimation_info", L))
 
-    if st.button("Estimate Features", type="primary"):
+    if st.button(t("estimate_features", L), type="primary"):
         from src.feature_estimator import estimate_batch
         tracks = load_tracks(user_id)
-        remaining = [t for t in tracks if "energy" not in t]
+        remaining = [tr for tr in tracks if "energy" not in tr]
 
-        progress_bar = st.progress(0, text="Estimating features...")
+        progress_bar = st.progress(0, text=t("estimating_features", L))
         status = st.empty()
 
         def on_progress(done: int, total: int) -> None:
-            progress_bar.progress(done / total, text=f"Estimated {done}/{total} tracks...")
-            status.text(f"Processing batch... ({done}/{total})")
+            progress_bar.progress(done / total, text=t("estimated_tracks", L, done=done, total=total))
+            status.text(t("processing_batch", L, done=done, total=total))
 
         estimated = estimate_batch(remaining, batch_size=10, progress_callback=on_progress)
 
-        done_map = {t["id"]: t for t in estimated if "energy" in t}
+        done_map = {tr["id"]: tr for tr in estimated if "energy" in tr}
         updated = []
-        for t in tracks:
-            if t["id"] in done_map:
-                updated.append(done_map[t["id"]])
+        for tr in tracks:
+            if tr["id"] in done_map:
+                updated.append(done_map[tr["id"]])
             else:
-                updated.append(t)
+                updated.append(tr)
 
         save_tracks(updated, user_id)
         invalidate_cache(user_id)
 
-        newly_done = sum(1 for t in updated if "energy" in t)
-        progress_bar.progress(1.0, text="Done!")
-        status.success(f"Estimated features for {newly_done}/{len(updated)} tracks.")
+        newly_done = sum(1 for tr in updated if "energy" in tr)
+        progress_bar.progress(1.0, text=t("done", L))
+        status.success(t("estimation_done", L, done=newly_done, total=len(updated)))
         st.rerun()
 
 
@@ -454,30 +450,32 @@ def render_feature_estimation_ui(user_id: str) -> None:
 # ---------------------------------------------------------------------------
 
 def render_play_on_spotify(track_ids: list[str]) -> None:
+    L = _lang()
     has_creds = SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET
     if not has_creds:
-        st.info("Set Spotify credentials in `.env` to enable playback.")
+        st.info(t("set_creds_playback", L))
         return
 
     token = ensure_spotify_token()
     if not token:
         auth_url = get_auth_url(SPOTIFY_REDIRECT_URI)
+        btn_text = t("connect_spotify_short", L)
         st.markdown(
             f'<a href="{auth_url}" target="_self" style="'
             'display:inline-block;padding:0.5em 1em;background:#1DB954;'
             'color:white;border-radius:24px;text-decoration:none;'
-            'font-weight:bold;">'
-            '\U0001f3a7 Connect to Spotify</a>',
+            f'font-weight:bold;">'
+            f'{btn_text}</a>',
             unsafe_allow_html=True,
         )
         return
 
     if not track_ids:
-        st.warning("No tracks with Spotify IDs found.")
+        st.warning(t("no_track_ids", L))
         return
 
     user_name = st.session_state.get("spotify_user_name", "")
-    st.caption(f"Connected to Spotify as **{user_name}**")
+    st.caption(t("connected_as", L, name=user_name))
 
     try:
         devices = get_devices(token)
@@ -485,46 +483,40 @@ def render_play_on_spotify(track_ids: list[str]) -> None:
         if exc.status_code == 401:
             for key in ("spotify_token", "spotify_refresh", "spotify_user_id", "spotify_user_name"):
                 st.session_state.pop(key, None)
-            st.warning("Spotify session expired. Please reconnect.")
+            st.warning(t("session_expired", L))
             st.rerun()
-        st.error(f"Could not fetch devices: {exc}")
+        st.error(t("fetch_devices_error", L, error=exc))
         return
 
     if not devices:
-        st.warning(
-            "No active Spotify devices found. "
-            "Open the Spotify app on your phone or computer first."
-        )
-        if st.button("\U0001f504 Refresh devices", key="refresh_devices"):
+        st.warning(t("no_devices", L))
+        if st.button(t("refresh_devices", L), key="refresh_devices"):
             st.rerun()
         return
 
     device_labels = [f"{d['name']} ({d['type']})" for d in devices]
     selected_idx = st.selectbox(
-        "Select device",
+        t("select_device", L),
         range(len(devices)),
         format_func=lambda i: device_labels[i],
         key="spotify_device",
     )
     selected_device = devices[selected_idx]
 
-    if st.button("\u25b6 Play on Spotify", type="primary", key="play_spotify"):
+    if st.button(t("play_on_spotify", L), type="primary", key="play_spotify"):
         try:
             start_playback(token, track_ids, device_id=selected_device["id"])
-            st.success(
-                f"Now playing on **{selected_device['name']}** \u2014 "
-                f"{len(track_ids)} tracks queued!"
-            )
+            st.success(t("now_playing", L, device=selected_device["name"], count=len(track_ids)))
             st.balloons()
         except SpotifyAPIError as exc:
             if exc.status_code == 403:
-                st.error("Playback failed (403). Spotify Premium required.")
+                st.error(t("playback_403", L))
             elif exc.status_code == 404:
-                st.error("Device not found. Reopen the Spotify app and try again.")
+                st.error(t("playback_404", L))
             else:
-                st.error(f"Playback failed: {exc}")
+                st.error(t("playback_failed", L, error=exc))
         except Exception as exc:
-            st.error(f"Playback failed: {exc}")
+            st.error(t("playback_failed", L, error=exc))
 
 
 # ---------------------------------------------------------------------------
@@ -533,15 +525,16 @@ def render_play_on_spotify(track_ids: list[str]) -> None:
 
 def render_v2_playlist(result: dict) -> None:
     """Display the v2 generated playlist with stage breakdown."""
+    L = _lang()
     for item in result.get("tracks", []):
         track = item["track"]
         stage = item["stage"]
         lead = item["lead_axis"]
 
-        st.subheader(f"Stage {stage} \u2014 Lead axis: {lead}")
+        st.subheader(t("stage_heading", L, stage=stage, lead=lead))
         st.caption(
-            f"Target \u2014 V: {item['target_V']:.2f} | "
-            f"E: {item['target_E']:.2f} | T: {item['target_T']:.2f}"
+            t("stage_target_caption", L,
+              v=item["target_V"], e=item["target_E"], t=item["target_T"])
         )
 
         col1, col2 = st.columns([3, 2])
@@ -570,13 +563,14 @@ def render_rating_widget(result: dict) -> None:
 
     Phase 2 placeholder — captures the rating but does NOT update the model yet.
     """
-    st.subheader("Rate this playlist")
-    st.caption("Your feedback will help improve future recommendations (Phase 2).")
+    L = _lang()
+    st.subheader(t("rate_playlist", L))
+    st.caption(t("rate_caption", L))
 
     col1, col2 = st.columns([2, 3])
     with col1:
         rating = st.slider(
-            "How well does this playlist match your emotional transition?",
+            t("rate_slider", L),
             1, 5, 3,
             key="playlist_rating",
         )
@@ -584,15 +578,15 @@ def render_rating_widget(result: dict) -> None:
         stars = "\u2b50" * rating + "\u2606" * (5 - rating)
         st.markdown(f"### {stars}")
 
-    if st.button("Submit Rating", key="submit_rating"):
+    if st.button(t("submit_rating", L), key="submit_rating"):
         st.session_state["last_rating"] = {
             "source": result.get("source", ""),
             "target": result.get("target", ""),
             "rating": rating,
             "track_ids": result.get("all_track_ids", []),
         }
-        st.success(f"Rating saved ({rating}/5). Thank you!")
-        st.caption("Note: Phase 2 bandit learning is not yet active.")
+        st.success(t("rating_saved", L, rating=rating))
+        st.caption(t("phase2_note", L))
 
 
 # ---------------------------------------------------------------------------
@@ -600,18 +594,29 @@ def render_rating_widget(result: dict) -> None:
 # ---------------------------------------------------------------------------
 
 def render_app(user_id: str) -> None:
+    L = _lang()
+
+    # Sidebar: language toggle (top)
+    lang_options = {"English": "en", "日本語": "ja"}
+    lang_label = [k for k, v in lang_options.items() if v == L][0]
+    selected_lang = st.sidebar.radio(
+        t("language", L), list(lang_options.keys()),
+        index=list(lang_options.keys()).index(lang_label),
+        horizontal=True, key="app_lang_radio",
+    )
+    if lang_options[selected_lang] != L:
+        st.session_state["lang"] = lang_options[selected_lang]
+        st.rerun()
+
     # Sidebar
-    st.sidebar.markdown(f"**User:** `{user_id}`")
-    if st.sidebar.button("Log out", key="logout_btn"):
+    st.sidebar.markdown(t("user_label", L, user_id=user_id))
+    if st.sidebar.button(t("log_out", L), key="logout_btn"):
         for k in list(st.session_state.keys()):
             del st.session_state[k]
         st.rerun()
 
-    st.title("\U0001f3b5 MindTune v2")
-    st.caption(
-        "3D emotion model (V/E/T) with dynamic path planning, "
-        "Viterbi DP track selection, and Spotify Connect playback"
-    )
+    st.title(t("main_title", L))
+    st.caption(t("main_subtitle", L))
 
     track_count = get_track_count(user_id)
     if track_count == 0:
@@ -622,94 +627,101 @@ def render_app(user_id: str) -> None:
     if not has_features:
         render_feature_estimation_ui(user_id)
         st.divider()
-        st.info("You can still explore the emotion model below while features are being set up.")
+        st.info(t("features_setup_note", L))
 
     # Check feature store
     has_store = _check_feature_store(user_id)
     fs_count = _feature_store_count(user_id) if has_store else 0
 
     # Sidebar: Emotion Settings
-    st.sidebar.header("Emotion Settings")
-    emotion_names = [e.name for e in list_emotions()]
+    st.sidebar.header(t("emotion_settings", L))
+    emotions_list = list_emotions()
+    emotion_names = [e.name for e in emotions_list]
+    # Display names (translated) with mapping back to internal names
+    display_names = [emotion_name(n, L) for n in emotion_names]
 
-    current_name = st.sidebar.selectbox(
-        "How are you feeling now?",
-        emotion_names,
-        index=emotion_names.index("Anxious") if "Anxious" in emotion_names else 0,
+    current_idx = emotion_names.index("Anxious") if "Anxious" in emotion_names else 0
+    target_idx = emotion_names.index("Calm") if "Calm" in emotion_names else 0
+
+    current_sel = st.sidebar.selectbox(
+        t("how_feeling", L), display_names, index=current_idx,
     )
-    target_name = st.sidebar.selectbox(
-        "How do you want to feel?",
-        emotion_names,
-        index=emotion_names.index("Calm") if "Calm" in emotion_names else 0,
+    target_sel = st.sidebar.selectbox(
+        t("how_want_feel", L), display_names, index=target_idx,
     )
+
+    # Map display name back to internal name
+    current_name = emotion_names[display_names.index(current_sel)]
+    target_name = emotion_names[display_names.index(target_sel)]
 
     current = get_emotion(current_name)
     target = get_emotion(target_name)
 
     # Sidebar: Algorithm params
-    st.sidebar.header("Algorithm Settings")
-    st.sidebar.caption("Dynamic path planning (v2)")
+    st.sidebar.header(t("algo_settings", L))
+    st.sidebar.caption(t("algo_caption", L))
     N = st.sidebar.slider(
-        "Number of stages (N)", 3, 12, PARAMS.N,
-        help="How many stages in the emotion transition path"
+        t("n_stages", L), 3, 12, PARAMS.N,
+        help=t("n_stages_help", L),
     )
     K = st.sidebar.slider(
-        "Candidates per stage (K)", 3, 20, PARAMS.K_default,
-        help="Higher K = more candidate tracks considered per stage"
+        t("k_candidates", L), 3, 20, PARAMS.K_default,
+        help=t("k_candidates_help", L),
     )
 
     # Collapsible v1 Linear strategy (debug only)
-    with st.sidebar.expander("v1 Linear strategy (debug)"):
-        st.caption("Legacy 2D strategy from v1. Use for comparison only.")
-        v1_enabled = st.checkbox("Enable v1 mode", value=False, key="v1_mode")
+    with st.sidebar.expander(t("v1_debug_title", L)):
+        st.caption(t("v1_debug_caption", L))
+        v1_enabled = st.checkbox(t("enable_v1", L), value=False, key="v1_mode")
 
     # Sidebar: Library management
     st.sidebar.markdown("---")
-    st.sidebar.header("Library")
-    st.sidebar.caption(f"Track library: {track_count} tracks")
+    st.sidebar.header(t("library_header", L))
+    st.sidebar.caption(t("track_library_count", L, count=track_count))
     st.sidebar.caption(
-        f"Feature store: {fs_count} tracks" if has_store
-        else "Feature store: not built"
+        t("feature_store_count", L, count=fs_count) if has_store
+        else t("feature_store_not_built", L)
     )
     token = ensure_spotify_token()
     if token:
-        if st.sidebar.button("\U0001f504 Refresh Library from Spotify", key="refresh_lib"):
+        if st.sidebar.button(t("refresh_library", L), key="refresh_lib"):
             with st.sidebar:
-                with st.spinner("Fetching liked songs..."):
+                with st.spinner(t("fetching_liked", L)):
                     try:
                         tracks = fetch_liked_songs(token)
                         save_tracks(tracks, user_id)
                         invalidate_cache(user_id)
-                        st.sidebar.success(f"Updated! {len(tracks)} tracks imported.")
+                        st.sidebar.success(t("updated_tracks", L, count=len(tracks)))
                         # Rebuild feature store automatically
                         from src.feature_extraction.build_pipeline import build
                         build(user_id=user_id)
                         st.rerun()
                     except Exception as exc:
-                        st.sidebar.error(f"Refresh failed: {exc}")
+                        st.sidebar.error(t("refresh_failed", L, error=exc))
     else:
         has_creds = SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET
         if has_creds:
             auth_url = get_auth_url(SPOTIFY_REDIRECT_URI)
+            btn_text = t("connect_spotify_refresh", L)
             st.sidebar.markdown(
                 f'<a href="{auth_url}" target="_self" style="'
                 'display:inline-block;padding:0.4em 0.8em;background:#1DB954;'
                 'color:white;border-radius:16px;text-decoration:none;'
-                'font-size:0.85em;margin-top:0.3em;">'
-                '\U0001f3a7 Connect Spotify to refresh</a>',
+                f'font-size:0.85em;margin-top:0.3em;">'
+                f'{btn_text}</a>',
                 unsafe_allow_html=True,
             )
 
     # Main tabs
     tab1, tab2, tab3 = st.tabs(
-        ["\U0001f3b6 Generate Playlist", "\U0001f4ca 3D Circumplex", "\U0001f4c0 Track Library"]
+        [t("tab_generate", L), t("tab_circumplex", L), t("tab_library", L)]
     )
 
     with tab1:
         if current_name == target_name:
-            st.info("Select different emotions for current and target.")
+            st.info(t("same_emotion", L))
         elif not has_features and not has_store:
-            st.info("Run feature estimation or build the feature store first.")
+            st.info(t("need_features_or_store", L))
         elif not has_store:
             render_feature_store_build(user_id)
         else:
@@ -717,7 +729,7 @@ def render_app(user_id: str) -> None:
 
             if v1_mode:
                 # Legacy v1 mode
-                if st.button("Generate Playlist (v1 Linear)", type="secondary"):
+                if st.button(t("generate_v1", L), type="secondary"):
                     from src.playlist import generate_playlist
                     from src.strategies import get_strategy_description
                     playlist = generate_playlist(
@@ -731,18 +743,18 @@ def render_app(user_id: str) -> None:
 
                 if "v1_playlist" in st.session_state:
                     playlist = st.session_state["v1_playlist"]
-                    st.warning("v1 Linear mode (for comparison only)")
+                    st.warning(t("v1_mode_warning", L))
                     for i, pp in enumerate(playlist.phases):
                         phase = pp.phase
-                        st.subheader(f"Phase {i + 1}: {phase.label}")
+                        st.subheader(t("phase_heading", L, n=i + 1, label=phase.label))
                         for j, track in enumerate(pp.tracks, 1):
                             spotify_url = f"https://open.spotify.com/track/{track.get('id', '')}"
                             st.markdown(f"**{j}. [{track['title']}]({spotify_url})** \u2014 {track['artist']}")
                         st.divider()
             else:
                 # v2 Dynamic mode
-                if st.button("Generate Playlist", type="primary"):
-                    with st.spinner("Running dynamic path planning + Viterbi DP..."):
+                if st.button(t("generate_v2", L), type="primary"):
+                    with st.spinner(t("running_v2", L)):
                         from src.selection.assemble import recommend_v2
                         result = recommend_v2(
                             source_label=current_name,
@@ -758,10 +770,13 @@ def render_app(user_id: str) -> None:
                     if "error" in result:
                         st.error(result["error"])
                     else:
+                        src_disp = emotion_name(result["source"], L)
+                        tgt_disp = emotion_name(result["target"], L)
+                        order_str = " \u2192 ".join(result.get("axis_order", []))
                         st.success(
-                            f"{result['source']} \u2192 {result['target']} | "
-                            f"Axis order: {' \u2192 '.join(result.get('axis_order', []))} | "
-                            f"Stages: {result.get('stage_alloc', {})}"
+                            t("result_summary", L,
+                              source=src_disp, target=tgt_disp,
+                              order=order_str, alloc=result.get("stage_alloc", {}))
                         )
                         render_v2_playlist(result)
 
@@ -777,7 +792,7 @@ def render_app(user_id: str) -> None:
                         render_rating_widget(result)
 
                         # Show progress matrix
-                        with st.expander("Progress Matrix"):
+                        with st.expander(t("progress_matrix", L)):
                             pm = result.get("progress_matrix", [])
                             if pm:
                                 import pandas as pd
@@ -798,53 +813,54 @@ def render_app(user_id: str) -> None:
         fig = render_circumplex_3d(current, target, v2_result)
         st.plotly_chart(fig, use_container_width=True, key="tab_circumplex")
 
-        st.subheader("Emotion Details (V/E/T)")
+        st.subheader(t("emotion_details", L))
         cols = st.columns(3)
         for i, em in enumerate(list_emotions()):
             with cols[i % 3]:
+                em_disp = emotion_name(em.name, L)
                 st.markdown(
-                    f"**{em.name}** \u2014 V:{em.V:.1f}, E:{em.E:.1f}, T:{em.T:.1f}"
+                    f"**{em_disp}** \u2014 V:{em.V:.1f}, E:{em.E:.1f}, T:{em.T:.1f}"
                 )
 
     with tab3:
-        st.subheader(f"Track Library ({track_count} tracks)")
+        st.subheader(t("track_library_title", L, count=track_count))
         tracks = load_tracks(user_id)
 
-        search = st.text_input("Search tracks", "")
+        search = st.text_input(t("search_tracks", L), "")
         if search:
             search_lower = search.lower()
             tracks = [
-                t for t in tracks
-                if search_lower in t.get("title", "").lower()
-                or search_lower in t.get("artist", "").lower()
+                tr for tr in tracks
+                if search_lower in tr.get("title", "").lower()
+                or search_lower in tr.get("artist", "").lower()
             ]
-            st.caption(f"Showing {len(tracks)} matching tracks")
+            st.caption(t("showing_matches", L, count=len(tracks)))
 
         page_size = 50
         total_pages = max(1, (len(tracks) + page_size - 1) // page_size)
-        page = st.number_input("Page", 1, total_pages, 1)
+        page = st.number_input(t("page", L), 1, total_pages, 1)
         page_tracks = tracks[(page - 1) * page_size : page * page_size]
 
-        for t in page_tracks:
+        for tr in page_tracks:
             features = ""
-            v = t.get("V", t.get("energy"))
-            e = t.get("E")
-            tval = t.get("T")
+            v = tr.get("V", tr.get("energy"))
+            e = tr.get("E")
+            tval = tr.get("T")
             if v is not None and e is not None:
                 features = f" | V:{v:.2f} E:{e:.2f}"
                 if tval is not None:
                     features += f" T:{tval:.2f}"
-            elif t.get("energy") is not None:
+            elif tr.get("energy") is not None:
                 features = (
-                    f" | E:{t['energy']:.2f} H:{t.get('happiness', 0):.2f}"
-                    f" BPM:{t.get('bpm', '?')}"
+                    f" | E:{tr['energy']:.2f} H:{tr.get('happiness', 0):.2f}"
+                    f" BPM:{tr.get('bpm', '?')}"
                 )
-            vibe = t.get("vibe", "")
+            vibe = tr.get("vibe", "")
             if vibe:
                 features += f" [{vibe}]"
 
-            spotify_url = f"https://open.spotify.com/track/{t.get('id', '')}"
-            st.markdown(f"[{t['title']}]({spotify_url}) \u2014 {t['artist']}{features}")
+            spotify_url = f"https://open.spotify.com/track/{tr.get('id', '')}"
+            st.markdown(f"[{tr['title']}]({spotify_url}) \u2014 {tr['artist']}{features}")
 
 
 # ---------------------------------------------------------------------------
