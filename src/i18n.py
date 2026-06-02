@@ -482,6 +482,18 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "\U0001f3a7 Connect Spotify to refresh",
         "ja": "\U0001f3a7 Spotifyに接続して更新",
     },
+    "rebuild_feature_store": {
+        "en": "\U0001f504 Rebuild Feature Store",
+        "ja": "\U0001f504 特徴量ストアを再構築",
+    },
+    "reset_ratings": {
+        "en": "\U0001f9f9 Reset Ratings",
+        "ja": "\U0001f9f9 評価をリセット",
+    },
+    "ratings_reset": {
+        "en": "Ratings and playlist results cleared.",
+        "ja": "評価とプレイリスト結果をクリアしました。",
+    },
 
     # ── Tabs ────────────────────────────────────────────────────
     "tab_generate": {

@@ -712,6 +712,31 @@ def render_app(user_id: str) -> None:
                 unsafe_allow_html=True,
             )
 
+    # Always show Rebuild Feature Store button
+    if st.sidebar.button(t("rebuild_feature_store", L), key="rebuild_fs"):
+        with st.sidebar:
+            with st.spinner(t("building_fs", L)):
+                try:
+                    from src.feature_extraction.build_pipeline import build
+                    metrics = build(user_id=user_id)
+                    st.sidebar.success(
+                        t("fs_built", L,
+                          count=metrics["n_tracks"],
+                          matched=metrics.get("matched", 0),
+                          total=metrics.get("total", 0))
+                    )
+                    st.rerun()
+                except Exception as exc:
+                    st.sidebar.error(t("build_failed", L, error=exc))
+
+    # Reset Ratings button for testing
+    if st.sidebar.button(t("reset_ratings", L), key="reset_ratings"):
+        st.session_state.pop("last_rating", None)
+        st.session_state.pop("v2_result", None)
+        st.session_state.pop("v1_playlist", None)
+        st.sidebar.success(t("ratings_reset", L))
+        st.rerun()
+
     # Main tabs
     tab1, tab2, tab3 = st.tabs(
         [t("tab_generate", L), t("tab_circumplex", L), t("tab_library", L)]
