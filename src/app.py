@@ -534,7 +534,7 @@ def render_v2_playlist(result: dict) -> None:
         st.subheader(t("stage_heading", L, stage=stage, lead=lead))
         st.caption(
             t("stage_target_caption", L,
-              v=item["target_V"], e=item["target_E"], t=item["target_T"])
+              v=item["target_V"], e=item["target_E"], tval=item["target_T"])
         )
 
         col1, col2 = st.columns([3, 2])
@@ -544,11 +544,11 @@ def render_v2_playlist(result: dict) -> None:
                 f"**[{track.get('title', '?')}]({spotify_url})** \u2014 {track.get('artist', '?')}"
             )
         with col2:
-            v = track.get("V", 0)
-            e = track.get("E", 0)
-            t = track.get("T", 0)
+            tv = track.get("V", 0)
+            te = track.get("E", 0)
+            tt = track.get("T", 0)
             st.caption(
-                f"V:{v:.2f} | E:{e:.2f} | T:{t:.2f}"
+                f"V:{tv:.2f} | E:{te:.2f} | T:{tt:.2f}"
                 + (f" | {track.get('vibe', '')}" if track.get("vibe") else "")
             )
         st.divider()

@@ -345,8 +345,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "ja": "ステージ {stage} \u2014 主軸: {lead}",
     },
     "stage_target_caption": {
-        "en": "Target \u2014 V: {v:.2f} | E: {e:.2f} | T: {t:.2f}",
-        "ja": "目標 \u2014 V: {v:.2f} | E: {e:.2f} | T: {t:.2f}",
+        "en": "Target \u2014 V: {v:.2f} | E: {e:.2f} | T: {tval:.2f}",
+        "ja": "目標 \u2014 V: {v:.2f} | E: {e:.2f} | T: {tval:.2f}",
     },
 
     # ── Rating widget ───────────────────────────────────────────
