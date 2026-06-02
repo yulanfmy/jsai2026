@@ -482,6 +482,10 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "\U0001f3a7 Connect Spotify to refresh",
         "ja": "\U0001f3a7 Spotifyに接続して更新",
     },
+    "refresh_and_rebuild": {
+        "en": "\U0001f504 Refresh & Rebuild",
+        "ja": "\U0001f504 更新＆再構築",
+    },
     "rebuild_feature_store": {
         "en": "\U0001f504 Rebuild Feature Store",
         "ja": "\U0001f504 特徴量ストアを再構築",

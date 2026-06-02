@@ -684,20 +684,45 @@ def render_app(user_id: str) -> None:
     )
     token = ensure_spotify_token()
     if token:
-        if st.sidebar.button(t("refresh_library", L), key="refresh_lib"):
+        # Combined Refresh & Rebuild button
+        if st.sidebar.button(t("refresh_and_rebuild", L), key="refresh_rebuild"):
             with st.sidebar:
-                with st.spinner(t("fetching_liked", L)):
-                    try:
+                try:
+                    with st.spinner(t("fetching_liked", L)):
                         tracks = fetch_liked_songs(token)
                         save_tracks(tracks, user_id)
                         invalidate_cache(user_id)
-                        st.sidebar.success(t("updated_tracks", L, count=len(tracks)))
-                        # Rebuild feature store automatically
+                    st.sidebar.info(t("updated_tracks", L, count=len(tracks)))
+
+                    # Estimate features for tracks missing v1 features
+                    remaining = [tr for tr in tracks if "energy" not in tr]
+                    if remaining and OPENAI_API_KEY:
+                        with st.spinner(t("estimating_features", L)):
+                            from src.feature_estimator import estimate_batch
+                            estimated = estimate_batch(remaining, batch_size=10)
+                            done_map = {tr["id"]: tr for tr in estimated if "energy" in tr}
+                            updated = []
+                            for tr in tracks:
+                                if tr["id"] in done_map:
+                                    updated.append(done_map[tr["id"]])
+                                else:
+                                    updated.append(tr)
+                            save_tracks(updated, user_id)
+                            invalidate_cache(user_id)
+
+                    # Rebuild feature store
+                    with st.spinner(t("building_fs", L)):
                         from src.feature_extraction.build_pipeline import build
-                        build(user_id=user_id)
-                        st.rerun()
-                    except Exception as exc:
-                        st.sidebar.error(t("refresh_failed", L, error=exc))
+                        metrics = build(user_id=user_id)
+                    st.sidebar.success(
+                        t("fs_built", L,
+                          count=metrics["n_tracks"],
+                          matched=metrics.get("matched", 0),
+                          total=metrics.get("total", 0))
+                    )
+                    st.rerun()
+                except Exception as exc:
+                    st.sidebar.error(t("refresh_failed", L, error=exc))
     else:
         has_creds = SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET
         if has_creds:
@@ -712,7 +737,7 @@ def render_app(user_id: str) -> None:
                 unsafe_allow_html=True,
             )
 
-    # Always show Rebuild Feature Store button
+    # Always show Rebuild Feature Store button (no Spotify needed)
     if st.sidebar.button(t("rebuild_feature_store", L), key="rebuild_fs"):
         with st.sidebar:
             with st.spinner(t("building_fs", L)):
