@@ -88,8 +88,18 @@ def _safe_display_name(user_id: str) -> str:
     return f"{user_id[:6]}...{user_id[-4:]}"
 
 
+_ZENODO_IDS_PATH = Path(__file__).resolve().parent.parent / "data" / "zenodo_matched_ids.json"
+
+
 def _load_zenodo_track_ids() -> set[str]:
-    """Load the set of track IDs that have Zenodo ground truth."""
+    """Load the set of track IDs that have Zenodo ground truth.
+
+    Tries the committed JSON list first (works without running the pipeline),
+    then falls back to labeled_tracks.parquet if available.
+    """
+    if _ZENODO_IDS_PATH.exists():
+        with open(_ZENODO_IDS_PATH) as f:
+            return set(json.load(f))
     labeled_path = _CACHE_DIR / "labeled_tracks.parquet"
     if not labeled_path.exists():
         return set()
