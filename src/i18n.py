@@ -498,6 +498,22 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "\U0001f504 Rebuild Feature Store",
         "ja": "\U0001f504 特徴量ストアを再構築",
     },
+    "clean_rebuild": {
+        "en": "\U0001f5d1 Clean Rebuild (delete all & re-import)",
+        "ja": "\U0001f5d1 クリーン再構築（全削除＆再インポート）",
+    },
+    "cache_cleared": {
+        "en": "All cached data cleared.",
+        "ja": "キャッシュデータをすべて削除しました。",
+    },
+    "clean_rebuild_no_spotify": {
+        "en": "Cache cleared but Spotify not connected — connect and click again to re-import.",
+        "ja": "キャッシュを削除しましたがSpotifyが未接続です。接続後に再度クリックしてください。",
+    },
+    "clean_rebuild_failed": {
+        "en": "Clean rebuild failed: {error}",
+        "ja": "クリーン再構築に失敗しました: {error}",
+    },
     "reset_ratings": {
         "en": "\U0001f9f9 Reset Ratings",
         "ja": "\U0001f9f9 評価をリセット",

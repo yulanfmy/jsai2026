@@ -876,22 +876,70 @@ def render_app(user_id: str) -> None:
                 unsafe_allow_html=True,
             )
 
-    # Always show Rebuild Feature Store button (no Spotify needed)
-    if st.sidebar.button(t("rebuild_feature_store", L), key="rebuild_fs"):
+    # Clean Rebuild: wipe all cache then re-download + rebuild from scratch
+    if st.sidebar.button(t("clean_rebuild", L), key="clean_rebuild"):
         with st.sidebar:
-            with st.spinner(t("building_fs", L)):
-                try:
-                    from src.feature_extraction.build_pipeline import build
-                    metrics = build(user_id=user_id)
+            try:
+                from pathlib import Path as _P
+                _cache = _P(__file__).resolve().parent.parent / "cache"
+                # Delete user-specific cache files
+                for pattern in [
+                    f"feature_store_{user_id}.parquet",
+                    f"zscore_params_{user_id}.json",
+                    "llm_raw.parquet",
+                    "labeled_tracks.parquet",
+                ]:
+                    p = _cache / pattern
+                    if p.exists():
+                        p.unlink()
+                # Clear tracks.json so features are re-estimated
+                _user_tracks = _P(__file__).resolve().parent / "data" / "users" / user_id / "tracks.json"
+                if _user_tracks.exists():
+                    _user_tracks.unlink()
+                invalidate_cache(user_id)
+                st.sidebar.info(t("cache_cleared", L))
+
+                # Re-download from Spotify if connected
+                _token = ensure_spotify_token()
+                if _token:
+                    with st.spinner(t("fetching_liked", L)):
+                        tracks = fetch_liked_songs(_token)
+                        save_tracks(tracks, user_id)
+                        invalidate_cache(user_id)
+                    st.sidebar.info(t("updated_tracks", L, count=len(tracks)))
+
+                    # Estimate features for all tracks (fresh start)
+                    if OPENAI_API_KEY:
+                        remaining = [tr for tr in tracks if "energy" not in tr]
+                        if remaining:
+                            with st.spinner(t("estimating_features", L)):
+                                from src.feature_estimator import estimate_batch
+                                estimated = estimate_batch(remaining, batch_size=10)
+                                done_map = {tr["id"]: tr for tr in estimated if "energy" in tr}
+                                updated = []
+                                for tr in tracks:
+                                    if tr["id"] in done_map:
+                                        updated.append(done_map[tr["id"]])
+                                    else:
+                                        updated.append(tr)
+                                save_tracks(updated, user_id)
+                                invalidate_cache(user_id)
+
+                    # Rebuild feature store
+                    with st.spinner(t("building_fs", L)):
+                        from src.feature_extraction.build_pipeline import build
+                        metrics = build(user_id=user_id)
                     st.sidebar.success(
                         t("fs_built", L,
                           count=metrics["n_tracks"],
                           matched=metrics.get("matched", 0),
                           total=metrics.get("total", 0))
                     )
-                    st.rerun()
-                except Exception as exc:
-                    st.sidebar.error(t("build_failed", L, error=exc))
+                else:
+                    st.sidebar.warning(t("clean_rebuild_no_spotify", L))
+                st.rerun()
+            except Exception as exc:
+                st.sidebar.error(t("clean_rebuild_failed", L, error=exc))
 
     # Reset Ratings button for testing
     if st.sidebar.button(t("reset_ratings", L), key="reset_ratings"):
