@@ -349,17 +349,18 @@ def render_circumplex_3d(
             label = f"S{stg}: {tr.get('title', '?')[:25]}"
             fig.add_trace(
                 go.Scatter3d(
-                    x=[tr.get("V", 0)],
-                    y=[tr.get("E", 0)],
-                    z=[tr.get("T", 0)],
+                    x=[float(tr.get("V") or 0)],
+                    y=[float(tr.get("E") or 0)],
+                    z=[float(tr.get("T") or 0)],
                     mode="markers+text",
                     marker=dict(size=8, color=clr, symbol="circle",
                                 opacity=0.9, line=dict(width=1, color="white")),
                     text=[label],
                     textposition="top center",
                     textfont=dict(size=9, color=clr),
-                    name=label,
-                    showlegend=False,
+                    name=t("legend_tracks", L) if i == 0 else label,
+                    legendgroup="tracks",
+                    showlegend=True,
                     hovertemplate=f"{label}<br>V: %{{x:.2f}}<br>E: %{{y:.2f}}<br>T: %{{z:.2f}}<extra></extra>",
                 )
             )
