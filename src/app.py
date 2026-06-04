@@ -774,17 +774,6 @@ def render_app(user_id: str) -> None:
     st.title(t("main_title", L))
     st.caption(t("main_subtitle", L))
 
-    # Dashboard link (gated by can_view_dashboard)
-    if can_view_dashboard(user_id):
-        dash_label = t("dashboard_link", L)
-        st.markdown(
-            f'<a href="?page=dashboard" target="_self" style="'
-            f'font-size:0.9em;color:#1DB954;text-decoration:none;'
-            f'font-weight:600;">'
-            f'\U0001f4ca {dash_label}</a>',
-            unsafe_allow_html=True,
-        )
-
     track_count = get_track_count(user_id)
     if track_count == 0:
         render_library_import(user_id)
