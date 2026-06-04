@@ -668,6 +668,14 @@ def render_app(user_id: str) -> None:
         t("k_candidates", L), 3, 20, PARAMS.K_default,
         help=t("k_candidates_help", L),
     )
+    alpha_options = {"0.33 (linear)": 0.33, "0.6 (dynamic)": 0.6, "1.0": 1.0}
+    alpha_label = st.sidebar.selectbox(
+        t("alpha_label", L),
+        list(alpha_options.keys()),
+        index=1,
+        help=t("alpha_help", L),
+    )
+    alpha_val = alpha_options[alpha_label]
 
     # Collapsible v1 Linear strategy (debug only)
     with st.sidebar.expander(t("v1_debug_title", L)):
@@ -812,6 +820,7 @@ def render_app(user_id: str) -> None:
                             user_id=user_id,
                             K=K,
                             N=N,
+                            alpha=alpha_val,
                         )
                         st.session_state["v2_result"] = result
 

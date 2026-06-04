@@ -434,6 +434,14 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "Higher K = more candidate tracks considered per stage",
         "ja": "Kが大きいほど各ステージで考慮される候補曲が増えます",
     },
+    "alpha_label": {
+        "en": "α (lead-axis concentration)",
+        "ja": "α（主軸集中度）",
+    },
+    "alpha_help": {
+        "en": "0.33 = linear (equal pace), 0.6 = dynamic (default), 1.0 = fully sequential",
+        "ja": "0.33 = 線形（均等）、0.6 = 動的（デフォルト）、1.0 = 完全逐次",
+    },
     "v1_debug_title": {
         "en": "v1 Linear strategy (debug)",
         "ja": "v1 線形戦略（デバッグ）",
