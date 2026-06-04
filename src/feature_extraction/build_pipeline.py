@@ -93,6 +93,11 @@ def build(user_id: str | None = None, use_llm: bool = True) -> dict:
                 t["E"] = t.get("E_raw", 0.0)
         print("Too few labeled tracks for correction — using raw features")
 
+    # 4c. Map T_raw → T (no correction model for Tension — no ground truth)
+    for tr in corrected:
+        if "T" not in tr and "T_raw" in tr:
+            tr["T"] = tr["T_raw"]
+
     # 5. Build feature store
     store_path = build_store(corrected, user_id=user_id)
     print(f"Feature store built: {store_path} ({len(corrected)} tracks)")
