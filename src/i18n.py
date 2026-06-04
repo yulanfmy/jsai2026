@@ -507,6 +507,52 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "ja": "評価とプレイリスト結果をクリアしました。",
     },
 
+    # ── Evaluation section ────────────────────────────────────────
+    "eval_header": {
+        "en": "Evaluation",
+        "ja": "評価実験",
+    },
+    "eval_caption": {
+        "en": "Parameters and modes for evaluation only.",
+        "ja": "評価実験用のパラメータとモード。",
+    },
+    "eval_mode_toggle": {
+        "en": "Blind A/B/C comparison",
+        "ja": "ブラインドA/B/C比較",
+    },
+    "eval_mode_help": {
+        "en": "Generates playlists from Dynamic, Linear, and Spotify Autoplay — presented as unlabeled Method A/B/C.",
+        "ja": "Dynamic、Linear、Spotify Autoplayの3手法でプレイリストを生成し、ラベルなしのMethod A/B/Cとして表示します。",
+    },
+    "generate_eval": {
+        "en": "Generate A/B/C Comparison",
+        "ja": "A/B/C比較を生成",
+    },
+    "running_eval": {
+        "en": "Generating playlists for all three methods...",
+        "ja": "3手法のプレイリストを生成中...",
+    },
+    "eval_blind_info": {
+        "en": "Three methods are shown below as Method A, B, and C (randomly assigned). Listen to each and rate them.",
+        "ja": "以下に3つの手法をMethod A、B、Cとして表示しています（ランダムに割り当て）。それぞれを聴いて評価してください。",
+    },
+    "eval_need_spotify": {
+        "en": "Spotify Autoplay baseline requires Spotify connection. Connect via sidebar.",
+        "ja": "Spotify Autoplayベースラインにはスポティファイ接続が必要です。サイドバーから接続してください。",
+    },
+    "eval_no_tracks": {
+        "en": "No tracks generated for this method.",
+        "ja": "この手法ではトラックが生成されませんでした。",
+    },
+    "play_method": {
+        "en": "▶ Play Method {label}",
+        "ja": "▶ Method {label} を再生",
+    },
+    "playing_method": {
+        "en": "Playing Method {label}...",
+        "ja": "Method {label} を再生中...",
+    },
+
     # ── Tabs ────────────────────────────────────────────────────
     "tab_generate": {
         "en": "\U0001f3b6 Generate Playlist",

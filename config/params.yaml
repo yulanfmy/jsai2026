@@ -17,6 +17,9 @@ w1: 0.4           # Camelot key-compatibility weight
 w2: 0.4           # tempo-compatibility weight
 w3: 0.2           # arc-join weight
 
+# Evaluation mode (off by default — no baseline code reachable in production)
+EVAL_MODE: false
+
 # Start-state protection (§4.1)
 start_protection:
   - Angry

@@ -29,6 +29,7 @@ class Params:
     w1: float = 0.4
     w2: float = 0.4
     w3: float = 0.2
+    EVAL_MODE: bool = False
     start_protection: tuple[str, ...] = ("Angry", "Anxious", "Fear")
 
 
@@ -51,6 +52,7 @@ def load_params(path: Path | None = None) -> Params:
         w1=raw.get("w1", 0.4),
         w2=raw.get("w2", 0.4),
         w3=raw.get("w3", 0.2),
+        EVAL_MODE=raw.get("EVAL_MODE", False),
         start_protection=tuple(raw.get("start_protection", ["Angry", "Anxious", "Fear"])),
     )
 

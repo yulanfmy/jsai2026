@@ -590,6 +590,144 @@ def render_rating_widget(result: dict) -> None:
 
 
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Evaluation mode: blind A/B/C comparison
+# ---------------------------------------------------------------------------
+
+def _render_eval_mode(
+    L: str,
+    current: "Emotion",
+    target: "Emotion",
+    current_name: str,
+    target_name: str,
+    user_id: str,
+    K: int,
+    N: int,
+    alpha_val: float,
+) -> None:
+    """Render the blind A/B/C evaluation comparison."""
+    token = ensure_spotify_token()
+
+    if st.button(t("generate_eval", L), type="primary"):
+        with st.spinner(t("running_eval", L)):
+            results: dict[str, dict] = {}
+
+            # 1. Dynamic (v2)
+            from src.selection.assemble import recommend_v2
+            results["dynamic"] = recommend_v2(
+                source_label=current_name,
+                target_label=target_name,
+                user_id=user_id,
+                K=K,
+                N=N,
+                alpha=alpha_val,
+            )
+
+            # 2. Linear (v1 as N-track list)
+            from src.playlist import generate_playlist
+            v1_playlist = generate_playlist(
+                current=current,
+                target=target,
+                user_id=user_id,
+                strategy_name="Linear",
+                tracks_per_phase=max(1, N // 3),
+            )
+            # Convert v1 output to v2 shape
+            v1_tracks = []
+            idx = 0
+            for pp in v1_playlist.phases:
+                for tr in pp.tracks:
+                    idx += 1
+                    v1_tracks.append({
+                        "track": tr,
+                        "stage": idx,
+                        "lead_axis": "-",
+                        "target_V": 0.0, "target_E": 0.0, "target_T": 0.0,
+                        "explanation": f"Linear phase {pp.phase.label}",
+                    })
+            results["linear"] = {
+                "source": current_name,
+                "target": target_name,
+                "method": "linear",
+                "tracks": v1_tracks[:N],
+            }
+
+            # 3. Spotify Autoplay baseline
+            if token:
+                from src.evaluation import spotify_autoplay_baseline
+                results["autoplay"] = spotify_autoplay_baseline(token, N)
+            else:
+                results["autoplay"] = {
+                    "source": "autoplay", "target": "autoplay",
+                    "method": "spotify_autoplay",
+                    "error": t("eval_need_spotify", L),
+                    "tracks": [],
+                }
+
+            # Assign blind labels
+            from src.evaluation import assign_blind_labels, log_eval_session
+            mapping = assign_blind_labels(["dynamic", "linear", "autoplay"])
+
+            # Log
+            log_eval_session(user_id, mapping, results)
+
+            st.session_state["eval_results"] = results
+            st.session_state["eval_mapping"] = mapping
+
+    # Display results
+    if "eval_results" in st.session_state and "eval_mapping" in st.session_state:
+        results = st.session_state["eval_results"]
+        mapping = st.session_state["eval_mapping"]
+
+        st.info(t("eval_blind_info", L))
+
+        for label in sorted(mapping.keys()):
+            method = mapping[label]
+            result = results.get(method, {})
+
+            st.subheader(f"Method {label}")
+
+            if "error" in result:
+                st.warning(result["error"])
+                continue
+
+            tracks = result.get("tracks", [])
+            if not tracks:
+                st.warning(t("eval_no_tracks", L))
+                continue
+
+            for item in tracks:
+                track = item["track"]
+                spotify_url = f"https://open.spotify.com/track/{track.get('id', '')}"
+                st.markdown(
+                    f"**{item['stage']}. [{track.get('title', '?')}]({spotify_url})** "
+                    f"\u2014 {track.get('artist', '?')}"
+                )
+
+            # Play button per method
+            method_track_ids = [
+                item["track"].get("id", "")
+                for item in tracks if item["track"].get("id")
+            ]
+            if method_track_ids and token:
+                if st.button(
+                    t("play_method", L, label=label),
+                    key=f"play_eval_{label}",
+                ):
+                    try:
+                        devices = get_devices(token)
+                        if devices:
+                            start_playback(token, method_track_ids, devices[0]["id"])
+                            st.success(t("playing_method", L, label=label))
+                        else:
+                            st.warning(t("no_device", L))
+                    except SpotifyAPIError as exc:
+                        st.error(str(exc))
+
+            st.divider()
+
+
+# ---------------------------------------------------------------------------
 # Main app (post-login)
 # ---------------------------------------------------------------------------
 
@@ -668,19 +806,6 @@ def render_app(user_id: str) -> None:
         t("k_candidates", L), 3, 20, PARAMS.K_default,
         help=t("k_candidates_help", L),
     )
-    alpha_options = {"0.33 (linear)": 0.33, "0.6 (dynamic)": 0.6, "1.0": 1.0}
-    alpha_label = st.sidebar.selectbox(
-        t("alpha_label", L),
-        list(alpha_options.keys()),
-        index=1,
-        help=t("alpha_help", L),
-    )
-    alpha_val = alpha_options[alpha_label]
-
-    # Collapsible v1 Linear strategy (debug only)
-    with st.sidebar.expander(t("v1_debug_title", L)):
-        st.caption(t("v1_debug_caption", L))
-        v1_enabled = st.checkbox(t("enable_v1", L), value=False, key="v1_mode")
 
     # Sidebar: Library management
     st.sidebar.markdown("---")
@@ -767,8 +892,33 @@ def render_app(user_id: str) -> None:
         st.session_state.pop("last_rating", None)
         st.session_state.pop("v2_result", None)
         st.session_state.pop("v1_playlist", None)
+        st.session_state.pop("eval_results", None)
+        st.session_state.pop("eval_mapping", None)
         st.sidebar.success(t("ratings_reset", L))
         st.rerun()
+
+    # Sidebar: Evaluation section
+    st.sidebar.markdown("---")
+    st.sidebar.header(t("eval_header", L))
+    st.sidebar.caption(t("eval_caption", L))
+
+    alpha_options = {"0.33 (linear)": 0.33, "0.6 (dynamic)": 0.6, "1.0": 1.0}
+    alpha_label = st.sidebar.selectbox(
+        t("alpha_label", L),
+        list(alpha_options.keys()),
+        index=1,
+        help=t("alpha_help", L),
+    )
+    alpha_val = alpha_options[alpha_label]
+
+    # v1 Linear strategy toggle
+    v1_enabled = st.sidebar.checkbox(t("enable_v1", L), value=False, key="v1_mode")
+
+    # Eval mode toggle (blind A/B/C comparison)
+    eval_mode = st.sidebar.checkbox(
+        t("eval_mode_toggle", L), value=False, key="eval_mode",
+        help=t("eval_mode_help", L),
+    )
 
     # Main tabs
     tab1, tab2, tab3 = st.tabs(
@@ -782,6 +932,12 @@ def render_app(user_id: str) -> None:
             st.info(t("need_features_or_store", L))
         elif not has_store:
             render_feature_store_build(user_id)
+        elif eval_mode:
+            # --- Evaluation mode: blind A/B/C comparison ---
+            _render_eval_mode(
+                L, current, target, current_name, target_name,
+                user_id, K, N, alpha_val,
+            )
         else:
             v1_mode = st.session_state.get("v1_mode", False)
 
