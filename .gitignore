@@ -14,4 +14,8 @@ cache/
 models/
 *.parquet
 !data/zenodo_correction_pool.parquet
+!cache/llm_raw_*.parquet
+!cache/feature_store_*.parquet
+!cache/zscore_params_*.json
+!cache/labeled_tracks_*.parquet
 oauth_proxy.py
