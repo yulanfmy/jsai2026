@@ -49,7 +49,17 @@ def get_track_count(user_id: str) -> int:
 
 
 def tracks_have_features(user_id: str) -> bool:
-    """Check whether the user's tracks have LLM-estimated features."""
+    """Check whether the user's tracks have LLM-estimated features.
+
+    Returns True if either:
+    - tracks.json contains inline features (v1 bootstrap), OR
+    - a per-user feature store parquet exists (v2 pipeline)
+    """
+    from pathlib import Path
+    _root = Path(__file__).resolve().parent.parent
+    store = _root / "cache" / f"feature_store_{user_id}.parquet"
+    if store.exists():
+        return True
     tracks = load_tracks(user_id)
     if not tracks:
         return False
