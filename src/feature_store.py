@@ -208,9 +208,9 @@ def build_store(
             rows.append(row)
 
     # --- compute μ, σ over the library ---
-    vs = [float(r["V"]) for r in rows if "V" in r]
-    es = [float(r["E"]) for r in rows if "E" in r]
-    ts = [float(r["T"]) for r in rows if "T" in r]
+    vs = [float(r["V"]) for r in rows if r.get("V") is not None]
+    es = [float(r["E"]) for r in rows if r.get("E") is not None]
+    ts = [float(r["T"]) for r in rows if r.get("T") is not None]
 
     mu = {
         "V": statistics.mean(vs) if vs else 0.0,
@@ -233,7 +233,7 @@ def build_store(
     zparams = {"mu": mu, "sigma": sigma}
     for r in rows:
         zV, zE, zT = standardize(
-            float(r.get("V", 0)), float(r.get("E", 0)), float(r.get("T", 0)),
+            float(r.get("V") or 0), float(r.get("E") or 0), float(r.get("T") or 0),
             zscore_params=zparams,
         )
         r["zV"] = zV

@@ -33,7 +33,7 @@ FEATURE_COLS = [
 
 def prepare_features(track: dict) -> list[float]:
     """Extract the feature vector for the GBM model."""
-    return [float(track.get(col, 0.0)) for col in FEATURE_COLS]
+    return [float(v) if v is not None else 0.0 for v in (track.get(col) for col in FEATURE_COLS)]
 
 
 def train_model(
@@ -47,7 +47,7 @@ def train_model(
     import lightgbm as lgb
     from sklearn.model_selection import cross_val_score
 
-    labeled = [t for t in tracks if t.get("has_zenodo") and "zenodo_energy" in t]
+    labeled = [t for t in tracks if t.get("has_zenodo") and t.get("zenodo_energy") is not None]
     if len(labeled) < 10:
         raise ValueError(f"Too few labeled tracks ({len(labeled)}). Need ≥10 for training.")
 
@@ -55,7 +55,7 @@ def train_model(
     y = np.array([t["zenodo_energy"] for t in labeled])
 
     # Before correction: correlation of E_raw vs ground truth
-    e_raw = np.array([t.get("E_raw", 0.0) for t in labeled])
+    e_raw = np.array([float(t.get("E_raw") or 0.0) for t in labeled])
     r_before = float(np.corrcoef(e_raw, y)[0, 1]) if np.std(e_raw) > 0 else 0.0
 
     # Train LightGBM (same hyperparameters as Valence)
