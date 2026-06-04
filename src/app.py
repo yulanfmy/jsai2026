@@ -908,8 +908,10 @@ def render_app(user_id: str) -> None:
                 for pattern in [
                     f"feature_store_{user_id}.parquet",
                     f"zscore_params_{user_id}.json",
-                    "llm_raw.parquet",
-                    "labeled_tracks.parquet",
+                    f"llm_raw_{user_id}.parquet",
+                    f"labeled_tracks_{user_id}.parquet",
+                    "llm_raw.parquet",        # legacy
+                    "labeled_tracks.parquet",  # legacy
                 ]:
                     p = _cache / pattern
                     if p.exists():

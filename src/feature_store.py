@@ -43,7 +43,7 @@ def _ensure_loaded() -> dict[str, dict]:
     return _INDEX
 
 
-def _load_index(path: Path | None = None) -> dict[str, dict]:
+def _load_index(path: Path | None = None, user_id: str | None = None) -> dict[str, dict]:
     if path is None:
         path = _STORE_PATH
     if not path.exists():
@@ -56,18 +56,25 @@ def _load_index(path: Path | None = None) -> dict[str, dict]:
     sample = next(iter(idx.values()), {}) if idx else {}
     if idx and "T" not in sample:
         filled = False
-        # Try 1: read T_raw from llm_raw.parquet
-        llm_path = _CACHE_DIR / "llm_raw.parquet"
-        if llm_path.exists():
-            try:
-                llm_table = pq.read_table(llm_path, columns=["id", "T_raw"])
-                for llm_row in llm_table.to_pylist():
-                    tid = llm_row.get("id")
-                    if tid and tid in idx:
-                        idx[tid]["T"] = float(llm_row.get("T_raw", 0.0))
-                filled = True
-            except Exception:
-                pass
+        # Try 1: read T_raw from per-user llm_raw parquet
+        for fname in (
+            f"llm_raw_{user_id}.parquet" if user_id else None,
+            "llm_raw.parquet",  # legacy fallback
+        ):
+            if fname is None:
+                continue
+            llm_path = _CACHE_DIR / fname
+            if llm_path.exists():
+                try:
+                    llm_table = pq.read_table(llm_path, columns=["id", "T_raw"])
+                    for llm_row in llm_table.to_pylist():
+                        tid = llm_row.get("id")
+                        if tid and tid in idx:
+                            idx[tid]["T"] = float(llm_row.get("T_raw", 0.0))
+                    filled = True
+                    break
+                except Exception:
+                    pass
         # Try 2: derive T from arc_start_T / arc_end_T
         if not filled and "arc_start_T" in sample:
             for row in idx.values():
@@ -98,7 +105,7 @@ def get_all_for_user(user_id: str) -> list[dict]:
     """
     user_store = _CACHE_DIR / f"feature_store_{user_id}.parquet"
     if user_store.exists():
-        return list(_load_index(user_store).values())
+        return list(_load_index(user_store, user_id=user_id).values())
     return get_all()
 
 

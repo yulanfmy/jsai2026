@@ -50,7 +50,7 @@ def build(user_id: str | None = None, use_llm: bool = True) -> dict:
     if use_llm:
         from src.feature_extraction.llm_extract import extract_batch, save_raw_parquet
         extracted = extract_batch(tracks, batch_size=10)
-        save_raw_parquet(extracted)
+        save_raw_parquet(extracted, user_id=user_id)
     else:
         extracted = bootstrap_all(tracks)
     print(f"Extracted features for {len(extracted)} tracks")
@@ -63,7 +63,7 @@ def build(user_id: str | None = None, use_llm: bool = True) -> dict:
         enriched, matched, total = join_tracks(extracted, zenodo_index)
         del zenodo_index
         print(f"Zenodo matched: {matched}/{total} ({matched/total*100:.1f}%)")
-        save_labeled_parquet(enriched)
+        save_labeled_parquet(enriched, user_id=user_id)
     except FileNotFoundError:
         print("Zenodo dataset not found — skipping join")
         enriched = extracted
@@ -72,14 +72,14 @@ def build(user_id: str | None = None, use_llm: bool = True) -> dict:
     # 4. Train valence correction model (only if we have labeled data)
     metrics: dict = {"n_tracks": len(enriched), "matched": matched, "total": total}
     if matched >= 10:
-        model_V, train_metrics_V = train_model_V(enriched)
+        model_V, train_metrics_V = train_model_V(enriched, user_id=user_id)
         metrics.update(train_metrics_V)
         write_report_V(train_metrics_V)
         corrected = correct_valence(enriched, model_V)
         print(f"Valence correction: r_before={train_metrics_V['r_before']:.4f}, r_after={train_metrics_V['r_after']:.4f}")
 
         # 4b. Train energy correction model (same Scheme 1+6)
-        model_E, train_metrics_E = train_model_E(corrected)
+        model_E, train_metrics_E = train_model_E(corrected, user_id=user_id)
         metrics.update(train_metrics_E)
         write_report_E(train_metrics_E)
         corrected = correct_energy(corrected, model_E)

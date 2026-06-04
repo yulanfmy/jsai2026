@@ -115,10 +115,6 @@ def _compute_dashboard_data() -> dict:
     user_ids = _discover_users()
     zenodo_ids = _load_zenodo_track_ids()
 
-    # Load LLM cache once for data-quality checks
-    llm_path = _CACHE_DIR / "llm_raw.parquet"
-    llm_df = pd.read_parquet(llm_path) if llm_path.exists() else None
-
     users_data = []
     all_track_ids: set[str] = set()
     total_zenodo = 0
@@ -136,10 +132,14 @@ def _compute_dashboard_data() -> dict:
         # Zenodo coverage: count how many of this user's tracks are in the labeled set
         zenodo_count = len(track_ids & zenodo_ids)
 
-        # Data quality: check LLM cache for missing sub-features
+        # Data quality: check per-user LLM cache for missing sub-features
         missing_subfeatures = 0
         fallback_raw = 0
-        if llm_df is not None:
+        llm_path = _CACHE_DIR / f"llm_raw_{uid}.parquet"
+        if not llm_path.exists():
+            llm_path = _CACHE_DIR / "llm_raw.parquet"  # legacy fallback
+        if llm_path.exists():
+            llm_df = pd.read_parquet(llm_path)
             user_llm = llm_df[llm_df["id"].isin(track_ids)]
             for col in _REQUIRED_SUB_FEATURES:
                 if col in user_llm.columns:

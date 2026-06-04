@@ -39,6 +39,7 @@ def prepare_features(track: dict) -> list[float]:
 def train_model(
     tracks: list[dict],
     save_path: Path | None = None,
+    user_id: str | None = None,
 ) -> tuple[object, dict]:
     """Train a LightGBM regressor on tracks that have Zenodo ground truth.
 
@@ -97,17 +98,19 @@ def train_model(
 
     if save_path is None:
         _MODELS_DIR.mkdir(parents=True, exist_ok=True)
-        save_path = _MODELS_DIR / "model_E.pkl"
+        fname = f"model_E_{user_id}.pkl" if user_id else "model_E.pkl"
+        save_path = _MODELS_DIR / fname
     with open(save_path, "wb") as f:
         pickle.dump(model, f)
 
     return model, metrics
 
 
-def load_model(path: Path | None = None) -> object:
+def load_model(path: Path | None = None, user_id: str | None = None) -> object:
     """Load a trained model_E from disk."""
     if path is None:
-        path = _MODELS_DIR / "model_E.pkl"
+        fname = f"model_E_{user_id}.pkl" if user_id else "model_E.pkl"
+        path = _MODELS_DIR / fname
     if not path.exists():
         raise FileNotFoundError(f"model_E not found at {path}. Run train_model first.")
     with open(path, "rb") as f:

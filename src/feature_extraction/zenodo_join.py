@@ -111,11 +111,13 @@ def join_tracks(
 def save_labeled_parquet(
     tracks: list[dict],
     path: Path | None = None,
+    user_id: str | None = None,
 ) -> Path:
-    """Save the matched ground-truth table to cache/labeled_tracks.parquet."""
+    """Save the matched ground-truth table to cache/labeled_tracks[_<user_id>].parquet."""
     if path is None:
         _CACHE_DIR.mkdir(parents=True, exist_ok=True)
-        path = _CACHE_DIR / "labeled_tracks.parquet"
+        fname = f"labeled_tracks_{user_id}.parquet" if user_id else "labeled_tracks.parquet"
+        path = _CACHE_DIR / fname
 
     labeled = [t for t in tracks if t.get("has_zenodo")]
     table = pa.Table.from_pylist(labeled)

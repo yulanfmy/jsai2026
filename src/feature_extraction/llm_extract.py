@@ -209,21 +209,23 @@ def extract_batch(
     return results
 
 
-def save_raw_parquet(tracks: list[dict], path: Path | None = None) -> Path:
-    """Save extracted features to cache/llm_raw.parquet."""
+def save_raw_parquet(tracks: list[dict], path: Path | None = None, user_id: str | None = None) -> Path:
+    """Save extracted features to cache/llm_raw[_<user_id>].parquet."""
     if path is None:
         _CACHE_DIR.mkdir(parents=True, exist_ok=True)
-        path = _CACHE_DIR / "llm_raw.parquet"
+        fname = f"llm_raw_{user_id}.parquet" if user_id else "llm_raw.parquet"
+        path = _CACHE_DIR / fname
 
     table = pa.Table.from_pylist(tracks)
     pq.write_table(table, path)
     return path
 
 
-def load_raw_parquet(path: Path | None = None) -> list[dict]:
+def load_raw_parquet(path: Path | None = None, user_id: str | None = None) -> list[dict]:
     """Load previously extracted features from parquet."""
     if path is None:
-        path = _CACHE_DIR / "llm_raw.parquet"
+        fname = f"llm_raw_{user_id}.parquet" if user_id else "llm_raw.parquet"
+        path = _CACHE_DIR / fname
     if not path.exists():
         return []
     table = pq.read_table(path)
