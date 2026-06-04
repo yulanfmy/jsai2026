@@ -134,6 +134,7 @@ def run_evaluation() -> dict:
     kf = KFold(n_splits=K_FOLDS, shuffle=True, random_state=SEED)
 
     corrected_V = np.zeros(n)
+    corrected_E_ablation = np.zeros(n)
     mean_pred_V = np.zeros(n)
     mean_pred_E = np.zeros(n)
 
@@ -156,7 +157,13 @@ def run_evaluation() -> dict:
         preds = model_V.predict(X_test)
         corrected_V[test_idx] = np.clip(preds, -1.0, 1.0)
 
-    # For E: correction just uses raw (no model), so corrected_E = raw_E
+        # --- Energy correction ablation (same Scheme 1+6 for E) ---
+        y_train_E = gt_E[train_idx]
+        model_E = train_correction_fold(X_train, y_train_E)
+        preds_E = model_E.predict(X_test)
+        corrected_E_ablation[test_idx] = np.clip(preds_E, -1.0, 1.0)
+
+    # For E: production uses raw (no model), so corrected_E = raw_E
     corrected_E = raw_E.copy()
 
     # ── Compute metrics ──
@@ -191,15 +198,30 @@ def run_evaluation() -> dict:
                 print(f"    {k}: {v:.4f}")
         all_results[axis_name] = axis_results
 
+    # ── Energy correction ablation ──
+    ablation_raw = compute_metrics(gt_E, raw_E)
+    ablation_corrected = compute_metrics(gt_E, corrected_E_ablation)
+    energy_ablation = {
+        "Raw LLM (current)": ablation_raw,
+        "v2 corrected (ablation)": ablation_corrected,
+    }
+    delta_E = ablation_corrected["Pearson r"] - ablation_raw["Pearson r"]
+    print(f"\n  Energy correction ablation:")
+    print(f"    Raw LLM r = {ablation_raw['Pearson r']:.4f}")
+    print(f"    Corrected r = {ablation_corrected['Pearson r']:.4f}")
+    print(f"    Δr = {delta_E:+.4f}")
+
     return {
         "n_tracks": n,
         "k_folds": K_FOLDS,
         "seed": SEED,
         "axes": all_results,
+        "energy_ablation": energy_ablation,
         "data": {
             "gt_V": gt_V, "gt_E": gt_E,
             "raw_V": raw_V, "raw_E": raw_E,
             "corrected_V": corrected_V, "corrected_E": corrected_E,
+            "corrected_E_ablation": corrected_E_ablation,
             "mean_pred_V": mean_pred_V, "mean_pred_E": mean_pred_E,
         },
     }
@@ -262,6 +284,7 @@ def generate_plots(results: dict):
         ("Energy", "gt_E", "raw_E", "Raw LLM", "scatter_E_raw.png", "hist_E_raw.png"),
         ("Energy", "gt_E", "corrected_E", "v2 Corrected", "scatter_E_corrected.png", "hist_E_corrected.png"),
         ("Energy", "gt_E", "mean_pred_E", "Mean Predictor", "scatter_E_mean.png", "hist_E_mean.png"),
+        ("Energy (ablation)", "gt_E", "corrected_E_ablation", "v2 Corrected (ablation)", "scatter_E_ablation.png", "hist_E_ablation.png"),
     ]
 
     print("\nGenerating plots...")
@@ -371,6 +394,71 @@ def write_report(results: dict):
     )
     lines.append("")
 
+    # Energy correction ablation
+    energy_ablation = results.get("energy_ablation", {})
+    if energy_ablation:
+        ea_raw = energy_ablation.get("Raw LLM (current)", {})
+        ea_corr = energy_ablation.get("v2 corrected (ablation)", {})
+        ea_raw_r = ea_raw.get("Pearson r", 0)
+        ea_corr_r = ea_corr.get("Pearson r", 0)
+        ea_delta = ea_corr_r - ea_raw_r
+
+        lines.append("---\n")
+        lines.append("## Energy Correction Ablation\n")
+        lines.append(
+            "To justify the design decision of using raw Energy (without correction), "
+            "we apply the **same Scheme 1+6 correction** used for Valence to Energy "
+            "under the identical 5-fold CV protocol (seed=42, out-of-fold predictions).\n"
+        )
+        lines.append("| Condition | Pearson r | MAE | RMSE | R² | Spearman ρ |")
+        lines.append("|-----------|-----------|-----|------|----|------------|")
+        for cond_name, metrics in energy_ablation.items():
+            lines.append(
+                f"| {cond_name} "
+                f"| {metrics['Pearson r']:.4f} "
+                f"| {metrics['MAE']:.4f} "
+                f"| {metrics['RMSE']:.4f} "
+                f"| {metrics['R²']:.4f} "
+                f"| {metrics['Spearman ρ']:.4f} |"
+            )
+        lines.append("")
+        lines.append("### Scatter Plots\n")
+        lines.append("| Raw LLM (current) | v2 Corrected (ablation) |")
+        lines.append("|-------------------|------------------------|")
+        lines.append(
+            "| ![](outputs/scatter_E_raw.png) "
+            "| ![](outputs/scatter_E_ablation.png) |"
+        )
+        lines.append("")
+        lines.append("### Error Histograms\n")
+        lines.append("| Raw LLM (current) | v2 Corrected (ablation) |")
+        lines.append("|-------------------|------------------------|")
+        lines.append(
+            "| ![](outputs/hist_E_raw.png) "
+            "| ![](outputs/hist_E_ablation.png) |"
+        )
+        lines.append("")
+        if ea_delta > 0.01:
+            conclusion = (
+                f"Correction **improves** Energy (Δr = {ea_delta:+.4f}): "
+                f"raw r = {ea_raw_r:.4f} → corrected r = {ea_corr_r:.4f}. "
+                f"Consider applying correction to Energy for Zenodo-matched tracks."
+            )
+        elif ea_delta < -0.01:
+            conclusion = (
+                f"Correction **hurts** Energy (Δr = {ea_delta:+.4f}): "
+                f"raw r = {ea_raw_r:.4f} → corrected r = {ea_corr_r:.4f}. "
+                f"This justifies the current design of using raw Energy without correction."
+            )
+        else:
+            conclusion = (
+                f"Correction **leaves Energy essentially unchanged** (Δr = {ea_delta:+.4f}): "
+                f"raw r = {ea_raw_r:.4f} → corrected r = {ea_corr_r:.4f}. "
+                f"The correction model adds no value for Energy, justifying the use of raw values."
+            )
+        lines.append(f"**Conclusion:** {conclusion}\n")
+        lines.append("")
+
     # Reproducibility
     lines.append("## Reproducibility\n")
     lines.append(f"- Random seed: `{seed}`")
@@ -400,6 +488,7 @@ if __name__ == "__main__":
         "k_folds": results["k_folds"],
         "seed": results["seed"],
         "axes": results["axes"],
+        "energy_ablation": results.get("energy_ablation", {}),
     }
     json_path = _OUTPUT_DIR / "metrics.json"
     with open(json_path, "w") as f:

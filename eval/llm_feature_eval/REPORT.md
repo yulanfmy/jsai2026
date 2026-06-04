@@ -60,6 +60,33 @@ Energy shows strong raw LLM correlation (r = 0.6459, Spearman ρ = 0.7614), indi
 
 **Conclusion:** Valence is the weak axis (as expected) and benefits most from the Scheme 1+6 correction. The LightGBM model trained on sub-features (mode, lyric sentiment, brightness, chord complexity) plus raw V/E/T achieves a +0.1344 improvement in Pearson r on held-out data.
 
+
+---
+
+## Energy Correction Ablation
+
+To justify the design decision of using raw Energy (without correction), we apply the **same Scheme 1+6 correction** used for Valence to Energy under the identical 5-fold CV protocol (seed=42, out-of-fold predictions).
+
+| Condition | Pearson r | MAE | RMSE | R² | Spearman ρ |
+|-----------|-----------|-----|------|----|------------|
+| Raw LLM (current) | 0.6459 | 0.3774 | 0.4675 | -0.2475 | 0.7614 |
+| v2 corrected (ablation) | 0.7446 | 0.2169 | 0.2819 | 0.5462 | 0.7631 |
+
+### Scatter Plots
+
+| Raw LLM (current) | v2 Corrected (ablation) |
+|-------------------|------------------------|
+| ![](outputs/scatter_E_raw.png) | ![](outputs/scatter_E_ablation.png) |
+
+### Error Histograms
+
+| Raw LLM (current) | v2 Corrected (ablation) |
+|-------------------|------------------------|
+| ![](outputs/hist_E_raw.png) | ![](outputs/hist_E_ablation.png) |
+
+**Conclusion:** Correction **improves** Energy (Δr = +0.0987): raw r = 0.6459 → corrected r = 0.7446. Consider applying correction to Energy for Zenodo-matched tracks.
+
+
 ---
 
 ## Analysis — Context and Interpretation
@@ -174,6 +201,31 @@ v2 補正（Scheme 1+6）により、**Valence の Pearson r** が **0.4176**（
 Energy は Raw LLM のみで高い相関を示し（r = 0.6459、Spearman ρ = 0.7614）、Gemini がメタデータだけでもエネルギーを良好に推定できることを示しています。E にはモデル補正は適用されません（システムは非 Zenodo トラックに対して raw E_raw を使用）。
 
 **結論：** Valence は予想通り弱い軸であり、Scheme 1+6 補正の恩恵を最も受けます。サブ特徴量（モード、歌詞センチメント、ブライトネス、コード複雑度）と raw V/E/T で学習された LightGBM モデルは、ホールドアウトデータにおいて Pearson r を +0.1344 改善しました。
+
+---
+
+## Energy 補正アブレーション
+
+Raw Energy を補正なしで使用するという設計判断を検証するため、Valence に適用したものと**同一の Scheme 1+6 補正**を Energy に適用しました（同一の5分割CV、シード=42、fold外予測のみ）。
+
+| 条件 | Pearson r | MAE | RMSE | R² | Spearman ρ |
+|------|-----------|-----|------|----|------------|
+| Raw LLM（現行） | 0.6459 | 0.3774 | 0.4675 | -0.2475 | 0.7614 |
+| v2 補正済み（アブレーション） | 0.7446 | 0.2169 | 0.2819 | 0.5462 | 0.7631 |
+
+### 散布図
+
+| Raw LLM（現行） | v2 補正済み（アブレーション） |
+|-----------------|---------------------------|
+| ![](outputs/scatter_E_raw.png) | ![](outputs/scatter_E_ablation.png) |
+
+### 誤差ヒストグラム
+
+| Raw LLM（現行） | v2 補正済み（アブレーション） |
+|-----------------|---------------------------|
+| ![](outputs/hist_E_raw.png) | ![](outputs/hist_E_ablation.png) |
+
+**結論：** 補正により Energy は**改善**されました（Δr = +0.0987）：raw r = 0.6459 → 補正済み r = 0.7446。Zenodo一致トラックに対して Energy にも補正を適用することを検討する価値があります。
 
 ---
 
