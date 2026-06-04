@@ -50,7 +50,19 @@ def _load_index(path: Path | None = None) -> dict[str, dict]:
         return {}
     table = pq.read_table(path)
     rows = table.to_pylist()
-    return {row["id"]: row for row in rows if "id" in row}
+    idx = {row["id"]: row for row in rows if "id" in row}
+
+    # Backfill T from llm_raw.parquet if missing in feature store
+    if idx and "T" not in next(iter(idx.values()), {}):
+        llm_path = _CACHE_DIR / "llm_raw.parquet"
+        if llm_path.exists():
+            llm_table = pq.read_table(llm_path, columns=["id", "T_raw"])
+            for llm_row in llm_table.to_pylist():
+                tid = llm_row.get("id")
+                if tid and tid in idx:
+                    idx[tid]["T"] = float(llm_row.get("T_raw", 0.0))
+
+    return idx
 
 
 def get(track_id: str) -> dict | None:

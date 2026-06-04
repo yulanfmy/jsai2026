@@ -244,13 +244,17 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "Set `OPENAI_API_KEY` in your `.env` file to enable LLM feature estimation.",
         "ja": "`.env` に `OPENAI_API_KEY` を設定してLLM特徴量推定を有効にしてください。",
     },
+    "set_llm_key": {
+        "en": "Set `GEMINI_API_KEY` (or `OPENAI_API_KEY`) in your `.env` file to enable LLM feature estimation.",
+        "ja": "`.env` に `GEMINI_API_KEY`（または `OPENAI_API_KEY`）を設定してLLM特徴量推定を有効にしてください。",
+    },
     "estimation_info": {
         "en": (
-            "This will use OpenAI to estimate energy, happiness, BPM, and other "
+            "This will use an LLM to estimate energy, happiness, BPM, and other "
             "features for each track based on its metadata."
         ),
         "ja": (
-            "OpenAIを使用して各トラックのメタデータに基づき、エネルギー、"
+            "LLMを使用して各トラックのメタデータに基づき、エネルギー、"
             "幸福度、BPMなどの特徴量を推定します。"
         ),
     },

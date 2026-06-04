@@ -18,6 +18,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from src.config import (
+    GEMINI_API_KEY,
     OPENAI_API_KEY,
     SPOTIFY_CLIENT_ID,
     SPOTIFY_CLIENT_SECRET,
@@ -426,8 +427,8 @@ def render_feature_estimation_ui(user_id: str) -> None:
     L = _lang()
     st.warning(t("features_not_estimated", L, count=get_track_count(user_id)))
 
-    if not OPENAI_API_KEY:
-        st.error(t("set_openai_key", L))
+    if not OPENAI_API_KEY and not GEMINI_API_KEY:
+        st.error(t("set_llm_key", L))
         return
 
     st.info(t("estimation_info", L))
