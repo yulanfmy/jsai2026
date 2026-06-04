@@ -356,7 +356,7 @@ def render_circumplex_3d(
                     text=[label],
                     textposition="top center",
                     textfont=dict(size=9, color=clr),
-                    name=t("legend_tracks", L) if i == 0 else label,
+                    name=label,
                     legendgroup="tracks",
                     showlegend=True,
                     hovertemplate=f"{label}<br>V: %{{x:.2f}}<br>E: %{{y:.2f}}<br>T: %{{z:.2f}}<extra></extra>",
