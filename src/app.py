@@ -905,12 +905,12 @@ def render_app(user_id: str) -> None:
                 from pathlib import Path as _P
                 _cache = _P(__file__).resolve().parent.parent / "cache"
                 # Delete user-specific cache files
+                # Keep llm_raw (expensive LLM extraction) — only delete
+                # derived files that are cheap to regenerate
                 for pattern in [
                     f"feature_store_{user_id}.parquet",
                     f"zscore_params_{user_id}.json",
-                    f"llm_raw_{user_id}.parquet",
                     f"labeled_tracks_{user_id}.parquet",
-                    "llm_raw.parquet",        # legacy
                     "labeled_tracks.parquet",  # legacy
                 ]:
                     p = _cache / pattern

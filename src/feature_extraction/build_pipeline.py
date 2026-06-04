@@ -48,9 +48,31 @@ def build(user_id: str | None = None, use_llm: bool = True) -> dict:
 
     # 2. Feature extraction (bootstrap or LLM)
     if use_llm:
-        from src.feature_extraction.llm_extract import extract_batch, save_raw_parquet
-        extracted = extract_batch(tracks, batch_size=10)
-        save_raw_parquet(extracted, user_id=user_id)
+        from src.feature_extraction.llm_extract import extract_batch, save_raw_parquet, load_raw_parquet
+        # Reuse cached LLM extraction if available (expensive to redo)
+        cached = load_raw_parquet(user_id=user_id)
+        if cached:
+            print(f"Reusing cached LLM features ({len(cached)} tracks)")
+            # Merge metadata from fresh tracks with cached LLM features
+            cached_map = {t["id"]: t for t in cached}
+            extracted = []
+            new_tracks = []
+            for t in tracks:
+                tid = t.get("id", "")
+                if tid in cached_map:
+                    extracted.append(cached_map[tid])
+                else:
+                    new_tracks.append(t)
+            if new_tracks:
+                print(f"Extracting {len(new_tracks)} new tracks...")
+                new_extracted = extract_batch(new_tracks, batch_size=10)
+                extracted.extend(new_extracted)
+                save_raw_parquet(extracted, user_id=user_id)
+            else:
+                print("All tracks already cached — skipping LLM extraction")
+        else:
+            extracted = extract_batch(tracks, batch_size=10)
+            save_raw_parquet(extracted, user_id=user_id)
     else:
         extracted = bootstrap_all(tracks)
     print(f"Extracted features for {len(extracted)} tracks")
