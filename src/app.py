@@ -993,48 +993,48 @@ def render_app(user_id: str) -> None:
                     )
                     st.session_state["v2_result"] = result
 
-                if "v2_result" in st.session_state:
-                    result = st.session_state["v2_result"]
-                    if "error" in result:
-                        st.error(result["error"])
-                    else:
-                        src_disp = emotion_name(result["source"], L)
-                        tgt_disp = emotion_name(result["target"], L)
-                        order_str = " \u2192 ".join(result.get("axis_order", []))
-                        st.success(
-                            t("result_summary", L,
-                              source=src_disp, target=tgt_disp,
-                              order=order_str, alloc=result.get("stage_alloc", {}))
-                        )
-                        render_v2_playlist(result)
+            if "v2_result" in st.session_state:
+                result = st.session_state["v2_result"]
+                if "error" in result:
+                    st.error(result["error"])
+                else:
+                    src_disp = emotion_name(result["source"], L)
+                    tgt_disp = emotion_name(result["target"], L)
+                    order_str = " \u2192 ".join(result.get("axis_order", []))
+                    st.success(
+                        t("result_summary", L,
+                          source=src_disp, target=tgt_disp,
+                          order=order_str, alloc=result.get("stage_alloc", {}))
+                    )
+                    render_v2_playlist(result)
 
-                        # Play on Spotify
-                        track_ids = [
-                            item["track"].get("id", "")
-                            for item in result.get("tracks", [])
-                            if item["track"].get("id")
-                        ]
-                        render_play_on_spotify(track_ids)
+                    # Play on Spotify
+                    track_ids = [
+                        item["track"].get("id", "")
+                        for item in result.get("tracks", [])
+                        if item["track"].get("id")
+                    ]
+                    render_play_on_spotify(track_ids)
 
-                        # Rating widget
-                        render_rating_widget(result)
+                    # Rating widget
+                    render_rating_widget(result)
 
-                        # Show progress matrix
-                        with st.expander(t("progress_matrix", L)):
-                            pm = result.get("progress_matrix", [])
-                            if pm:
-                                import pandas as pd
-                                axes = list(pm[0].keys()) if pm else []
-                                data = [[row.get(a, 0) for a in axes] for row in pm]
-                                df = pd.DataFrame(data, columns=axes, index=[f"Stage {i+1}" for i in range(len(pm))])
-                                st.dataframe(df.style.format("{:.4f}"), use_container_width=True)
+                    # Show progress matrix
+                    with st.expander(t("progress_matrix", L)):
+                        pm = result.get("progress_matrix", [])
+                        if pm:
+                            import pandas as pd
+                            axes = list(pm[0].keys()) if pm else []
+                            data = [[row.get(a, 0) for a in axes] for row in pm]
+                            df = pd.DataFrame(data, columns=axes, index=[f"Stage {i+1}" for i in range(len(pm))])
+                            st.dataframe(df.style.format("{:.4f}"), use_container_width=True)
 
-                        # 3D chart inline
-                        st.plotly_chart(
-                            render_circumplex_3d(current, target, result),
-                            use_container_width=True,
-                            key="playlist_circumplex",
-                        )
+                    # 3D chart inline
+                    st.plotly_chart(
+                        render_circumplex_3d(current, target, result),
+                        use_container_width=True,
+                        key="playlist_circumplex",
+                    )
 
     with tab2:
         v2_result = st.session_state.get("v2_result")
