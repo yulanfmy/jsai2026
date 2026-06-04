@@ -110,7 +110,7 @@ def top_k_filter(
             # Drop tracks whose arc raises T (we want T to decrease)
             filtered = [
                 t for t in pool
-                if t.get("arc_end_T", t.get("T", 0)) <= t.get("arc_start_T", t.get("T", 0))
+                if (t.get("arc_end_T") or t.get("T") or 0) <= (t.get("arc_start_T") or t.get("T") or 0)
             ]
             # Relaxation: if too few candidates after filtering, keep at least K
             if len(filtered) >= K:
