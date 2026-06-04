@@ -56,11 +56,14 @@ def _load_index(path: Path | None = None) -> dict[str, dict]:
     if idx and "T" not in next(iter(idx.values()), {}):
         llm_path = _CACHE_DIR / "llm_raw.parquet"
         if llm_path.exists():
-            llm_table = pq.read_table(llm_path, columns=["id", "T_raw"])
-            for llm_row in llm_table.to_pylist():
-                tid = llm_row.get("id")
-                if tid and tid in idx:
-                    idx[tid]["T"] = float(llm_row.get("T_raw", 0.0))
+            try:
+                llm_table = pq.read_table(llm_path, columns=["id", "T_raw"])
+                for llm_row in llm_table.to_pylist():
+                    tid = llm_row.get("id")
+                    if tid and tid in idx:
+                        idx[tid]["T"] = float(llm_row.get("T_raw", 0.0))
+            except Exception:
+                pass  # llm_raw may lack T_raw (old bootstrap format)
 
     return idx
 
