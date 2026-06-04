@@ -10,9 +10,9 @@
 
 | Condition | Pearson r | MAE | RMSE | R² | Spearman ρ |
 |-----------|-----------|-----|------|----|------------|
-| Baseline 1 (Raw LLM) | -0.0474 | 0.5918 | 0.7255 | -1.3622 | -0.0479 |
+| Baseline 1 (Raw LLM) | 0.4176 | 0.5744 | 0.6907 | -1.1408 | 0.4819 |
 | Baseline 2 (Mean predictor) | -0.1004 | 0.3980 | 0.4734 | -0.0057 | -0.0937 |
-| Proposed (v2 corrected) | -0.0165 | 0.4347 | 0.5297 | -0.2593 | -0.0084 |
+| Proposed (v2 corrected) | 0.5520 | 0.3237 | 0.3986 | 0.2870 | 0.5512 |
 
 ### Scatter Plots
 
@@ -32,9 +32,9 @@
 
 | Condition | Pearson r | MAE | RMSE | R² | Spearman ρ |
 |-----------|-----------|-----|------|----|------------|
-| Baseline 1 (Raw LLM) | 0.0244 | 0.5536 | 0.6797 | -1.6372 | 0.0241 |
+| Baseline 1 (Raw LLM) | 0.6459 | 0.3774 | 0.4675 | -0.2475 | 0.7614 |
 | Baseline 2 (Mean predictor) | -0.0950 | 0.3489 | 0.4196 | -0.0051 | -0.0892 |
-| Proposed (v2 corrected) | 0.0244 | 0.5536 | 0.6797 | -1.6372 | 0.0241 |
+| Proposed (v2 corrected) | 0.6459 | 0.3774 | 0.4675 | -0.2475 | 0.7614 |
 
 ### Scatter Plots
 
@@ -52,13 +52,13 @@
 
 ## Summary
 
-**Important context:** The current features are **bootstrapped from v1** (mathematical formulas: `V_raw = 2*happiness - 1`, `E_raw = 2*energy - 1`), not from direct LLM extraction of V/E/T. The v1 features (energy, happiness) are OpenAI estimates of subjective qualities, which do not map closely to Spotify's audio-derived valence and energy.
+Features extracted using **Gemini 3.5 Flash** (direct LLM V/E/T estimation from track metadata: title, artist, album).
 
-All three conditions show near-zero Pearson r for both axes, indicating that the bootstrapped features carry minimal linear signal relative to Spotify ground truth. For Valence: raw r = -0.0474, corrected r = -0.0165 (Δ = +0.0310). The v2 correction reduces MAE from 0.5918 to 0.4347, showing that the GBM model partially compensates for the systematic bias in the raw features.
+The v2 correction (Scheme 1+6) improves **Valence Pearson r** from **0.4176** (raw LLM) to **0.5520** (Δ = +0.1344), while reducing MAE from 0.5744 to 0.3237. Both raw and corrected substantially outperform the mean predictor (r = -0.1004), confirming that the LLM captures real signal.
 
-For Energy: raw r = 0.0244. No model correction is applied to E (the system uses raw E_raw for non-Zenodo tracks).
+Energy shows strong raw LLM correlation (r = 0.6459, Spearman ρ = 0.7614), indicating that Gemini estimates energy well from metadata alone. No model correction is applied to E (the system uses raw E_raw for non-Zenodo tracks).
 
-**Conclusion:** The bootstrapped v1→v2 conversion does not produce features that correlate with Spotify audio features. To achieve meaningful correlation, direct LLM extraction (`llm_extract.py` with a capable model like Gemini) should be used instead of the v1 bootstrap.
+**Conclusion:** Valence is the weak axis (as expected) and benefits most from the Scheme 1+6 correction. The LightGBM model trained on sub-features (mode, lyric sentiment, brightness, chord complexity) plus raw V/E/T achieves a +0.1344 improvement in Pearson r on held-out data.
 
 
 ## Reproducibility

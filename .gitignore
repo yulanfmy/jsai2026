@@ -13,3 +13,4 @@ src/data/tracks.json
 cache/
 models/
 *.parquet
+oauth_proxy.py

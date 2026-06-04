@@ -3,9 +3,9 @@
 ## Summary
 
 - **Labeled tracks (Zenodo matched)**: 735
-- **Correlation before correction (V_raw vs ground truth)**: r = -0.0474
-- **Correlation after correction (model_V vs ground truth)**: r = 0.9126
-- **5-fold CV R² score**: -0.2803 ± 0.0300
+- **Correlation before correction (V_raw vs ground truth)**: r = 0.4176
+- **Correlation after correction (model_V vs ground truth)**: r = 0.9505
+- **5-fold CV R² score**: -0.1629 ± 0.0207
 
 ## Interpretation
 

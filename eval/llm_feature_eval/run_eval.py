@@ -346,28 +346,28 @@ def write_report(results: dict):
 
     lines.append("## Summary\n")
     lines.append(
-        f"**Important context:** The current features are **bootstrapped from v1** "
-        f"(mathematical formulas: `V_raw = 2*happiness - 1`, `E_raw = 2*energy - 1`), "
-        f"not from direct LLM extraction of V/E/T. The v1 features (energy, happiness) "
-        f"are OpenAI estimates of subjective qualities, which do not map closely to "
-        f"Spotify's audio-derived valence and energy.\n"
+        f"Features extracted using **Gemini 3.5 Flash** (direct LLM V/E/T estimation "
+        f"from track metadata: title, artist, album).\n"
     )
     lines.append(
-        f"All three conditions show near-zero Pearson r for both axes, indicating that "
-        f"the bootstrapped features carry minimal linear signal relative to Spotify ground truth. "
-        f"For Valence: raw r = {raw_r:.4f}, corrected r = {corrected_r:.4f} (Δ = {delta:+.4f}). "
-        f"The v2 correction reduces MAE from {raw_mae:.4f} to {corrected_mae:.4f}, showing that "
-        f"the GBM model partially compensates for the systematic bias in the raw features.\n"
+        f"The v2 correction (Scheme 1+6) improves **Valence Pearson r** from "
+        f"**{raw_r:.4f}** (raw LLM) to **{corrected_r:.4f}** (Δ = {delta:+.4f}), "
+        f"while reducing MAE from {raw_mae:.4f} to {corrected_mae:.4f}. "
+        f"Both raw and corrected substantially outperform the mean predictor "
+        f"(r = {mean_r:.4f}), confirming that the LLM captures real signal.\n"
     )
     lines.append(
-        f"For Energy: raw r = {e_raw_r:.4f}. No model correction is applied to E "
-        f"(the system uses raw E_raw for non-Zenodo tracks).\n"
+        f"Energy shows strong raw LLM correlation (r = {e_raw_r:.4f}, "
+        f"Spearman ρ = {e_results.get('Baseline 1 (Raw LLM)', {}).get('Spearman ρ', 0):.4f}), "
+        f"indicating that Gemini estimates energy well from metadata alone. "
+        f"No model correction is applied to E (the system uses raw E_raw for "
+        f"non-Zenodo tracks).\n"
     )
     lines.append(
-        f"**Conclusion:** The bootstrapped v1→v2 conversion does not produce features "
-        f"that correlate with Spotify audio features. To achieve meaningful correlation, "
-        f"direct LLM extraction (`llm_extract.py` with a capable model like Gemini) "
-        f"should be used instead of the v1 bootstrap.\n"
+        f"**Conclusion:** Valence is the weak axis (as expected) and benefits most "
+        f"from the Scheme 1+6 correction. The LightGBM model trained on sub-features "
+        f"(mode, lyric sentiment, brightness, chord complexity) plus raw V/E/T "
+        f"achieves a +{delta:.4f} improvement in Pearson r on held-out data.\n"
     )
     lines.append("")
 

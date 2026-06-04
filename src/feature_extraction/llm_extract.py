@@ -118,13 +118,18 @@ def _call_llm(prompt: str, user_content: str, max_retries: int = 3) -> str:
 
 
 def _call_gemini(prompt: str, user_content: str) -> str:
-    import google.generativeai as genai
+    from google import genai
+    from google.genai import types
 
-    genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel("gemini-2.0-flash")
-    response = model.generate_content(
-        [{"role": "user", "parts": [prompt + "\n\n" + user_content]}],
-        generation_config={"temperature": 0.3, "max_output_tokens": 4096},
+    client = genai.Client(api_key=GEMINI_API_KEY)
+    response = client.models.generate_content(
+        model="gemini-3.5-flash",
+        contents=prompt + "\n\n" + user_content,
+        config=types.GenerateContentConfig(
+            temperature=0.3,
+            max_output_tokens=4096,
+            thinking_config=types.ThinkingConfig(thinking_budget=0),
+        ),
     )
     return response.text or ""
 
