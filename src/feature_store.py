@@ -52,8 +52,11 @@ def _load_index(path: Path | None = None) -> dict[str, dict]:
     rows = table.to_pylist()
     idx = {row["id"]: row for row in rows if "id" in row}
 
-    # Backfill T from llm_raw.parquet if missing in feature store
-    if idx and "T" not in next(iter(idx.values()), {}):
+    # Backfill T if missing from feature store
+    sample = next(iter(idx.values()), {}) if idx else {}
+    if idx and "T" not in sample:
+        filled = False
+        # Try 1: read T_raw from llm_raw.parquet
         llm_path = _CACHE_DIR / "llm_raw.parquet"
         if llm_path.exists():
             try:
@@ -62,8 +65,15 @@ def _load_index(path: Path | None = None) -> dict[str, dict]:
                     tid = llm_row.get("id")
                     if tid and tid in idx:
                         idx[tid]["T"] = float(llm_row.get("T_raw", 0.0))
+                filled = True
             except Exception:
-                pass  # llm_raw may lack T_raw (old bootstrap format)
+                pass
+        # Try 2: derive T from arc_start_T / arc_end_T
+        if not filled and "arc_start_T" in sample:
+            for row in idx.values():
+                ast = float(row.get("arc_start_T", 0.0))
+                aet = float(row.get("arc_end_T", 0.0))
+                row["T"] = (ast + aet) / 2.0
 
     return idx
 

@@ -336,28 +336,31 @@ def render_circumplex_3d(
                 )
             )
 
-        # Show selected tracks on the 3D plot
+        # Show selected tracks on the 3D plot (one trace per stage for clarity)
         track_items = v2_result.get("tracks", [])
-        if track_items:
-            tv = [item["track"].get("V", 0) for item in track_items]
-            te = [item["track"].get("E", 0) for item in track_items]
-            tt = [item["track"].get("T", 0) for item in track_items]
-            t_labels = [
-                f"S{item['stage']}: {item['track'].get('title', '?')[:25]}"
-                for item in track_items
-            ]
-
+        _stage_colors = [
+            "#FF6B6B", "#FFD93D", "#6BCB77", "#4D96FF",
+            "#9B59B6", "#E67E22", "#1ABC9C", "#E74C3C",
+        ]
+        for i, item in enumerate(track_items):
+            tr = item["track"]
+            stg = item["stage"]
+            clr = _stage_colors[i % len(_stage_colors)]
+            label = f"S{stg}: {tr.get('title', '?')[:25]}"
             fig.add_trace(
                 go.Scatter3d(
-                    x=tv, y=te, z=tt,
+                    x=[tr.get("V", 0)],
+                    y=[tr.get("E", 0)],
+                    z=[tr.get("T", 0)],
                     mode="markers+text",
-                    marker=dict(size=8, color="#4ECDC4", symbol="circle",
+                    marker=dict(size=8, color=clr, symbol="circle",
                                 opacity=0.9, line=dict(width=1, color="white")),
-                    text=t_labels,
+                    text=[label],
                     textposition="top center",
-                    textfont=dict(size=9, color="#4ECDC4"),
-                    name=t("legend_tracks", L),
-                    hovertemplate="%{text}<br>V: %{x:.2f}<br>E: %{y:.2f}<br>T: %{z:.2f}<extra></extra>",
+                    textfont=dict(size=9, color=clr),
+                    name=label,
+                    showlegend=False,
+                    hovertemplate=f"{label}<br>V: %{{x:.2f}}<br>E: %{{y:.2f}}<br>T: %{{z:.2f}}<extra></extra>",
                 )
             )
 
