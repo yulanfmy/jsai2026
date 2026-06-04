@@ -117,15 +117,29 @@ def build(user_id: str | None = None) -> dict:
 
     pooled_labeled = sum(1 for t in training_pool if t.get("has_zenodo"))
 
+    _models_dir = _ROOT / "models"
+    _model_V_path = _models_dir / "model_V.pkl"
+    _model_E_path = _models_dir / "model_E.pkl"
+
     metrics: dict = {"n_tracks": len(enriched), "matched": matched, "total": total, "pooled_labeled": pooled_labeled}
-    if pooled_labeled >= 10:
+
+    # Reuse existing correction models if available (trained on Zenodo pool)
+    if _model_V_path.exists() and _model_E_path.exists():
+        import pickle
+        with open(_model_V_path, "rb") as fv:
+            model_V = pickle.load(fv)
+        with open(_model_E_path, "rb") as fe:
+            model_E = pickle.load(fe)
+        print("Reusing existing correction models (models/model_V.pkl, model_E.pkl)")
+        corrected = correct_valence(enriched, model_V)
+        corrected = correct_energy(corrected, model_E)
+    elif pooled_labeled >= 10:
         model_V, train_metrics_V = train_model_V(training_pool)
         metrics.update(train_metrics_V)
         write_report_V(train_metrics_V)
         corrected = correct_valence(enriched, model_V)
         print(f"Valence correction: r_before={train_metrics_V['r_before']:.4f}, r_after={train_metrics_V['r_after']:.4f}")
 
-        # 4b. Train energy correction model (same Scheme 1+6)
         model_E, train_metrics_E = train_model_E(corrected)
         metrics.update(train_metrics_E)
         write_report_E(train_metrics_E)

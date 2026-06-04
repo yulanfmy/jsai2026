@@ -12,6 +12,8 @@ src/data/users/
 src/data/tracks.json
 cache/
 models/
+!models/model_V.pkl
+!models/model_E.pkl
 *.parquet
 !data/zenodo_correction_pool.parquet
 !cache/llm_raw_*.parquet
