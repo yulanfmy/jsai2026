@@ -13,4 +13,5 @@ src/data/tracks.json
 cache/
 models/
 *.parquet
+!data/zenodo_correction_pool.parquet
 oauth_proxy.py

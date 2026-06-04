@@ -91,36 +91,37 @@ def build(user_id: str | None = None, use_llm: bool = True) -> dict:
         enriched = extracted
         matched, total = 0, len(extracted)
 
-    # 4. Pool labeled tracks from ALL users for correction training
-    #    This ensures even users with low Zenodo coverage benefit from
-    #    the correction model trained on the full labeled pool.
+    # 4. Load correction training pool
+    #    Primary: committed zenodo_correction_pool.parquet (~5000 tracks)
+    #    Fallback: pool labeled tracks from all users' per-user caches
     import pyarrow.parquet as _pq
     _cache = _ROOT / "cache"
-    pool_ids = {t["id"] for t in enriched if t.get("id")}  # current user's IDs
-    training_pool = list(enriched)  # start with current user's tracks
-    for lp in sorted(_cache.glob("labeled_tracks_*.parquet")):
-        try:
-            rows = _pq.read_table(lp).to_pylist()
-            for r in rows:
-                if r.get("id") and r["id"] not in pool_ids:
-                    training_pool.append(r)
-                    pool_ids.add(r["id"])
-        except Exception:
-            pass
-    # Also check legacy shared file
-    legacy_lp = _cache / "labeled_tracks.parquet"
-    if legacy_lp.exists():
-        try:
-            rows = _pq.read_table(legacy_lp).to_pylist()
-            for r in rows:
-                if r.get("id") and r["id"] not in pool_ids:
-                    training_pool.append(r)
-                    pool_ids.add(r["id"])
-        except Exception:
-            pass
+    zenodo_pool_path = _ROOT / "data" / "zenodo_correction_pool.parquet"
+    if zenodo_pool_path.exists():
+        training_pool = _pq.read_table(zenodo_pool_path).to_pylist()
+        # Add current user's labeled tracks (may have additional matches)
+        pool_ids = {t["id"] for t in training_pool if t.get("id")}
+        for t in enriched:
+            if t.get("has_zenodo") and t.get("id") and t["id"] not in pool_ids:
+                training_pool.append(t)
+                pool_ids.add(t["id"])
+        print(f"Training pool: {len(training_pool)} tracks from Zenodo correction pool + {matched} user matches")
+    else:
+        # Fallback: pool from per-user labeled_tracks files
+        pool_ids = {t["id"] for t in enriched if t.get("id")}
+        training_pool = list(enriched)
+        for lp in sorted(_cache.glob("labeled_tracks_*.parquet")):
+            try:
+                rows = _pq.read_table(lp).to_pylist()
+                for r in rows:
+                    if r.get("id") and r["id"] not in pool_ids:
+                        training_pool.append(r)
+                        pool_ids.add(r["id"])
+            except Exception:
+                pass
+        print(f"Training pool (fallback): {sum(1 for t in training_pool if t.get('has_zenodo'))} labeled tracks from user caches")
 
     pooled_labeled = sum(1 for t in training_pool if t.get("has_zenodo"))
-    print(f"Training pool: {pooled_labeled} labeled tracks (from this user: {matched}, from other users: {pooled_labeled - matched})")
 
     metrics: dict = {"n_tracks": len(enriched), "matched": matched, "total": total, "pooled_labeled": pooled_labeled}
     if pooled_labeled >= 10:
