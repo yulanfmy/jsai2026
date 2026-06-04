@@ -726,6 +726,14 @@ def _render_eval_mode(
 
             st.divider()
 
+        # Toggle to reveal method mapping (hidden by default for blinding)
+        if st.checkbox(t("show_mapping_toggle", L), value=False, key="show_mapping"):
+            st.markdown("---")
+            st.subheader(t("mapping_header", L))
+            for label in sorted(mapping.keys()):
+                method = mapping[label]
+                st.markdown(f"- **Method {label}** = {method}")
+
 
 # ---------------------------------------------------------------------------
 # Main app (post-login)

@@ -552,6 +552,14 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "Playing Method {label}...",
         "ja": "Method {label} を再生中...",
     },
+    "show_mapping_toggle": {
+        "en": "Show method mapping (de-blind)",
+        "ja": "手法の割り当てを表示（ブラインド解除）",
+    },
+    "mapping_header": {
+        "en": "Method Mapping",
+        "ja": "手法の割り当て",
+    },
 
     # ── Tabs ────────────────────────────────────────────────────
     "tab_generate": {
