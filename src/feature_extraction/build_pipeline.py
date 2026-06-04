@@ -69,17 +69,47 @@ def build(user_id: str | None = None, use_llm: bool = True) -> dict:
         enriched = extracted
         matched, total = 0, len(extracted)
 
-    # 4. Train valence correction model (only if we have labeled data)
-    metrics: dict = {"n_tracks": len(enriched), "matched": matched, "total": total}
-    if matched >= 10:
-        model_V, train_metrics_V = train_model_V(enriched, user_id=user_id)
+    # 4. Pool labeled tracks from ALL users for correction training
+    #    This ensures even users with low Zenodo coverage benefit from
+    #    the correction model trained on the full labeled pool.
+    import pyarrow.parquet as _pq
+    _cache = _ROOT / "cache"
+    pool_ids = {t["id"] for t in enriched if t.get("id")}  # current user's IDs
+    training_pool = list(enriched)  # start with current user's tracks
+    for lp in sorted(_cache.glob("labeled_tracks_*.parquet")):
+        try:
+            rows = _pq.read_table(lp).to_pylist()
+            for r in rows:
+                if r.get("id") and r["id"] not in pool_ids:
+                    training_pool.append(r)
+                    pool_ids.add(r["id"])
+        except Exception:
+            pass
+    # Also check legacy shared file
+    legacy_lp = _cache / "labeled_tracks.parquet"
+    if legacy_lp.exists():
+        try:
+            rows = _pq.read_table(legacy_lp).to_pylist()
+            for r in rows:
+                if r.get("id") and r["id"] not in pool_ids:
+                    training_pool.append(r)
+                    pool_ids.add(r["id"])
+        except Exception:
+            pass
+
+    pooled_labeled = sum(1 for t in training_pool if t.get("has_zenodo"))
+    print(f"Training pool: {pooled_labeled} labeled tracks (from this user: {matched}, from other users: {pooled_labeled - matched})")
+
+    metrics: dict = {"n_tracks": len(enriched), "matched": matched, "total": total, "pooled_labeled": pooled_labeled}
+    if pooled_labeled >= 10:
+        model_V, train_metrics_V = train_model_V(training_pool)
         metrics.update(train_metrics_V)
         write_report_V(train_metrics_V)
         corrected = correct_valence(enriched, model_V)
         print(f"Valence correction: r_before={train_metrics_V['r_before']:.4f}, r_after={train_metrics_V['r_after']:.4f}")
 
         # 4b. Train energy correction model (same Scheme 1+6)
-        model_E, train_metrics_E = train_model_E(corrected, user_id=user_id)
+        model_E, train_metrics_E = train_model_E(corrected)
         metrics.update(train_metrics_E)
         write_report_E(train_metrics_E)
         corrected = correct_energy(corrected, model_E)
@@ -91,7 +121,7 @@ def build(user_id: str | None = None, use_llm: bool = True) -> dict:
                 t["V"] = t.get("V_raw", 0.0)
             if "E" not in t:
                 t["E"] = t.get("E_raw", 0.0)
-        print("Too few labeled tracks for correction — using raw features")
+        print(f"Too few labeled tracks ({pooled_labeled}) for correction — using raw features")
 
     # 4c. Map T_raw → T (no correction model for Tension — no ground truth)
     for tr in corrected:
