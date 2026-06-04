@@ -133,11 +133,12 @@ def render_login() -> None:
 
     # Dashboard link on login page (gated by can_view_dashboard)
     if can_view_dashboard():
+        dash_label = t("dashboard_link", L)
         st.markdown(
             f'<a href="?page=dashboard" target="_self" style="'
-            'font-size:0.9em;color:#1DB954;text-decoration:none;'
-            f'font-weight:600;'>'
-            f'📊 {t("dashboard_link", L)}</a>',
+            f'font-size:0.9em;color:#1DB954;text-decoration:none;'
+            f'font-weight:600;">'
+            f'\U0001f4ca {dash_label}</a>',
             unsafe_allow_html=True,
         )
 
@@ -775,11 +776,12 @@ def render_app(user_id: str) -> None:
 
     # Dashboard link (gated by can_view_dashboard)
     if can_view_dashboard(user_id):
+        dash_label = t("dashboard_link", L)
         st.markdown(
             f'<a href="?page=dashboard" target="_self" style="'
-            'font-size:0.9em;color:#1DB954;text-decoration:none;'
+            f'font-size:0.9em;color:#1DB954;text-decoration:none;'
             f'font-weight:600;">'
-            f'📊 {t("dashboard_link", L)}</a>',
+            f'\U0001f4ca {dash_label}</a>',
             unsafe_allow_html=True,
         )
 
