@@ -603,34 +603,14 @@ def _render_eval_mode(
                 N=N,
             )
 
-            # 2. Linear (v1 as N-track list)
-            from src.playlist import generate_playlist
-            v1_playlist = generate_playlist(
-                current=current,
-                target=target,
+            # 2. Linear baseline (linear interpolation + greedy nearest-neighbor)
+            from src.evaluation import linear_baseline
+            results["linear"] = linear_baseline(
+                source_label=current_name,
+                target_label=target_name,
                 user_id=user_id,
-                strategy_name="Linear",
-                tracks_per_phase=max(1, N // 3),
+                N=N,
             )
-            # Convert v1 output to v2 shape
-            v1_tracks = []
-            idx = 0
-            for pp in v1_playlist.phases:
-                for tr in pp.tracks:
-                    idx += 1
-                    v1_tracks.append({
-                        "track": tr,
-                        "stage": idx,
-                        "lead_axis": "-",
-                        "target_V": 0.0, "target_E": 0.0, "target_T": 0.0,
-                        "explanation": f"Linear phase {pp.phase.label}",
-                    })
-            results["linear"] = {
-                "source": current_name,
-                "target": target_name,
-                "method": "linear",
-                "tracks": v1_tracks[:N],
-            }
 
             # 3. Spotify Autoplay baseline
             if token:

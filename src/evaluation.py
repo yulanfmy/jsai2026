@@ -7,6 +7,7 @@ When EVAL_MODE is False, none of these functions are called.
 from __future__ import annotations
 
 import json
+import math
 import random
 import time
 from pathlib import Path
@@ -55,6 +56,13 @@ def spotify_autoplay_baseline(
         shuffled = list(top_tracks)
         random.shuffle(shuffled)
         result_tracks = shuffled[:N]
+
+    # Ensure exactly N tracks by cycling if API returned fewer
+    if 0 < len(result_tracks) < N:
+        padded = list(result_tracks)
+        while len(padded) < N:
+            padded.append(result_tracks[len(padded) % len(result_tracks)])
+        result_tracks = padded
 
     # Assemble in recommend_v2-compatible shape
     output_tracks = []
@@ -131,3 +139,86 @@ def log_eval_session(
         json.dump(log_data, f, indent=2, ensure_ascii=False)
 
     return log_path
+
+
+def linear_baseline(
+    source_label: str,
+    target_label: str,
+    user_id: str,
+    N: int = 6,
+) -> dict:
+    """Linear interpolation baseline: equal-spacing + greedy nearest-neighbor.
+
+    Differs from v2 Dynamic in that it uses:
+    - Uniform linear interpolation (no axis ordering, no progress matrix)
+    - Greedy nearest-neighbor track selection (no Viterbi DP)
+    - No deduplication post-processing
+    """
+    from src.emotions import get_emotion
+    from src.feature_store import get_all_for_user
+
+    source = get_emotion(source_label)
+    target = get_emotion(target_label)
+
+    all_tracks = get_all_for_user(user_id)
+    if not all_tracks:
+        return {
+            "source": source_label,
+            "target": target_label,
+            "method": "linear",
+            "error": "No tracks in feature store",
+            "tracks": [],
+        }
+
+    # Linear interpolation: N equally-spaced targets from source to target
+    stage_targets: list[dict[str, float]] = []
+    for i in range(N):
+        t = (i + 1) / (N + 1)  # exclude endpoints (don't match source/target exactly)
+        stage_targets.append({
+            "V": source.V + t * (target.V - source.V),
+            "E": source.E + t * (target.E - source.E),
+            "T": source.T + t * (target.T - source.T),
+        })
+
+    # Greedy nearest-neighbor selection (no Viterbi DP)
+    used_ids: set[str] = set()
+    output_tracks: list[dict] = []
+
+    for i, tgt in enumerate(stage_targets):
+        best_track = None
+        best_dist = math.inf
+
+        for track in all_tracks:
+            tid = track.get("id", "")
+            if tid in used_ids:
+                continue
+            tV = float(track.get("V", 0) or 0)
+            tE = float(track.get("E", 0) or 0)
+            tT = float(track.get("T", 0) or 0)
+            dist = math.sqrt(
+                (tV - tgt["V"]) ** 2 +
+                (tE - tgt["E"]) ** 2 +
+                (tT - tgt["T"]) ** 2
+            )
+            if dist < best_dist:
+                best_dist = dist
+                best_track = track
+
+        if best_track is not None:
+            used_ids.add(best_track.get("id", ""))
+            output_tracks.append({
+                "track": best_track,
+                "stage": i + 1,
+                "lead_axis": "-",
+                "target_V": tgt["V"],
+                "target_E": tgt["E"],
+                "target_T": tgt["T"],
+                "explanation": f"Linear stage {i + 1}",
+            })
+
+    return {
+        "source": source_label,
+        "target": target_label,
+        "method": "linear",
+        "tracks": output_tracks,
+    }
