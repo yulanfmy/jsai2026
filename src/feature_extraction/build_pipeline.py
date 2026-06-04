@@ -1,6 +1,6 @@
 """End-to-end offline feature pipeline.
 
-Runs: bootstrap/LLM extraction → Zenodo join → valence correction → feature store.
+Runs: bootstrap/LLM extraction → Zenodo join → valence correction → energy correction → feature store.
 This script is meant to be run once (or when the track library changes).
 """
 
@@ -28,7 +28,8 @@ def build(user_id: str | None = None, use_llm: bool = True) -> dict:
     """
     from src.feature_extraction.bootstrap_v1 import bootstrap_all
     from src.feature_extraction.zenodo_join import load_zenodo_index, join_tracks, save_labeled_parquet
-    from src.feature_extraction.correct_valence import train_model, correct_valence, write_report
+    from src.feature_extraction.correct_valence import train_model as train_model_V, correct_valence, write_report as write_report_V
+    from src.feature_extraction.correct_energy import train_model as train_model_E, correct_energy, write_report as write_report_E
     from src.feature_store import build_store
 
     # 1. Load tracks
@@ -71,11 +72,18 @@ def build(user_id: str | None = None, use_llm: bool = True) -> dict:
     # 4. Train valence correction model (only if we have labeled data)
     metrics: dict = {"n_tracks": len(enriched), "matched": matched, "total": total}
     if matched >= 10:
-        model, train_metrics = train_model(enriched)
-        metrics.update(train_metrics)
-        write_report(train_metrics)
-        corrected = correct_valence(enriched, model)
-        print(f"Valence correction: r_before={train_metrics['r_before']:.4f}, r_after={train_metrics['r_after']:.4f}")
+        model_V, train_metrics_V = train_model_V(enriched)
+        metrics.update(train_metrics_V)
+        write_report_V(train_metrics_V)
+        corrected = correct_valence(enriched, model_V)
+        print(f"Valence correction: r_before={train_metrics_V['r_before']:.4f}, r_after={train_metrics_V['r_after']:.4f}")
+
+        # 4b. Train energy correction model (same Scheme 1+6)
+        model_E, train_metrics_E = train_model_E(corrected)
+        metrics.update(train_metrics_E)
+        write_report_E(train_metrics_E)
+        corrected = correct_energy(corrected, model_E)
+        print(f"Energy correction: r_before={train_metrics_E['r_before_E']:.4f}, r_after={train_metrics_E['r_after_E']:.4f}")
     else:
         corrected = enriched
         for t in corrected:
@@ -83,7 +91,7 @@ def build(user_id: str | None = None, use_llm: bool = True) -> dict:
                 t["V"] = t.get("V_raw", 0.0)
             if "E" not in t:
                 t["E"] = t.get("E_raw", 0.0)
-        print("Too few labeled tracks for valence correction — using raw features")
+        print("Too few labeled tracks for correction — using raw features")
 
     # 5. Build feature store
     store_path = build_store(corrected, user_id=user_id)

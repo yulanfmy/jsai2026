@@ -56,9 +56,9 @@ Features extracted using **Gemini 3.5 Flash** (direct LLM V/E/T estimation from 
 
 The v2 correction (Scheme 1+6) improves **Valence Pearson r** from **0.4176** (raw LLM) to **0.5520** (Δ = +0.1344), while reducing MAE from 0.5744 to 0.3237. Both raw and corrected substantially outperform the mean predictor (r = -0.1004), confirming that the LLM captures real signal.
 
-Energy shows strong raw LLM correlation (r = 0.6459, Spearman ρ = 0.7614), indicating that Gemini estimates energy well from metadata alone. No model correction is applied to E (the system uses raw E_raw for non-Zenodo tracks).
+Energy shows strong raw LLM correlation (r = 0.6459, Spearman ρ = 0.7614), indicating that Gemini estimates energy well from metadata alone. Following the ablation results below, the **production system now applies the same Scheme 1+6 correction to Energy** (r: 0.6459 → 0.7446, R²: −0.25 → 0.55), correcting the systematic overestimation bias. All tracks (Zenodo and non-Zenodo) use corrected E for a consistent scale.
 
-**Conclusion:** Valence is the weak axis (as expected) and benefits most from the Scheme 1+6 correction. The LightGBM model trained on sub-features (mode, lyric sentiment, brightness, chord complexity) plus raw V/E/T achieves a +0.1344 improvement in Pearson r on held-out data.
+**Conclusion:** Both Valence and Energy benefit from the Scheme 1+6 correction. The LightGBM model trained on sub-features (mode, lyric sentiment, brightness, chord complexity) plus raw V/E/T achieves a +0.1344 improvement in Valence Pearson r and +0.0987 in Energy Pearson r on held-out data.
 
 
 ---
@@ -84,7 +84,7 @@ To justify the design decision of using raw Energy (without correction), we appl
 |-------------------|------------------------|
 | ![](outputs/hist_E_raw.png) | ![](outputs/hist_E_ablation.png) |
 
-**Conclusion:** Correction **improves** Energy (Δr = +0.0987): raw r = 0.6459 → corrected r = 0.7446. Consider applying correction to Energy for Zenodo-matched tracks.
+**Conclusion:** Correction **improves** Energy (Δr = +0.0987): raw r = 0.6459 → corrected r = 0.7446. Based on this result, **the production system now applies Energy correction to all tracks** (not just Zenodo-matched), using the same model-based inference for non-Zenodo tracks as Valence does.
 
 
 ---
@@ -198,9 +198,9 @@ The gap between valence and energy performance (r = 0.552 vs r = 0.646) follows 
 
 v2 補正（Scheme 1+6）により、**Valence の Pearson r** が **0.4176**（Raw LLM）から **0.5520** へ改善（Δ = +0.1344）し、MAE も 0.5744 から 0.3237 に低減しました。Raw LLM と補正済みの両方が平均予測器（r = -0.1004）を大幅に上回っており、LLM が実質的な信号を捕捉していることが確認されました。
 
-Energy は Raw LLM のみで高い相関を示し（r = 0.6459、Spearman ρ = 0.7614）、Gemini がメタデータだけでもエネルギーを良好に推定できることを示しています。E にはモデル補正は適用されません（システムは非 Zenodo トラックに対して raw E_raw を使用）。
+Energy は Raw LLM のみで高い相関を示し（r = 0.6459、Spearman ρ = 0.7614）、Gemini がメタデータだけでもエネルギーを良好に推定できることを示しています。以下のアブレーション結果に基づき、**本番システムでは Energy にも同一の Scheme 1+6 補正を適用**しています（r: 0.6459 → 0.7446、R²: −0.25 → 0.55）。系統的な過大評価バイアスが補正され、全トラック（Zenodo・非Zenodo）で一貫した補正済みスケールを使用しています。
 
-**結論：** Valence は予想通り弱い軸であり、Scheme 1+6 補正の恩恵を最も受けます。サブ特徴量（モード、歌詞センチメント、ブライトネス、コード複雑度）と raw V/E/T で学習された LightGBM モデルは、ホールドアウトデータにおいて Pearson r を +0.1344 改善しました。
+**結論：** Valence と Energy の両方が Scheme 1+6 補正の恩恵を受けます。サブ特徴量（モード、歌詞センチメント、ブライトネス、コード複雑度）と raw V/E/T で学習された LightGBM モデルは、ホールドアウトデータにおいて Valence の Pearson r を +0.1344、Energy の Pearson r を +0.0987 改善しました。
 
 ---
 
@@ -225,7 +225,7 @@ Raw Energy を補正なしで使用するという設計判断を検証するた
 |-----------------|---------------------------|
 | ![](outputs/hist_E_raw.png) | ![](outputs/hist_E_ablation.png) |
 
-**結論：** 補正により Energy は**改善**されました（Δr = +0.0987）：raw r = 0.6459 → 補正済み r = 0.7446。Zenodo一致トラックに対して Energy にも補正を適用することを検討する価値があります。
+**結論：** 補正により Energy は**改善**されました（Δr = +0.0987）：raw r = 0.6459 → 補正済み r = 0.7446。この結果に基づき、**本番システムでは全トラック**（Zenodo一致に限らず）に Energy 補正を適用し、Valence と同様にモデルベースの推論を非 Zenodo トラックにも使用しています。
 
 ---
 

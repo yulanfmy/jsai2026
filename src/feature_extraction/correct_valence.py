@@ -169,11 +169,7 @@ def correct_valence(
             t["V"] = max(-1.0, min(1.0, pred))
             t["V_corrected_source"] = "model"
 
-        # Also update E from Zenodo if available
-        if t.get("has_zenodo") and "zenodo_energy" in t:
-            t["E"] = t["zenodo_energy"]
-        else:
-            t["E"] = t.get("E_raw", 0.0)
+        # Note: E is handled by correct_energy.py — do not set E here.
 
         # Update key/mode/tempo from Zenodo if available
         if t.get("has_zenodo"):
