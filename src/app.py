@@ -341,14 +341,20 @@ def render_circumplex_3d(
             tv = [item["track"].get("V", 0) for item in track_items]
             te = [item["track"].get("E", 0) for item in track_items]
             tt = [item["track"].get("T", 0) for item in track_items]
-            t_labels = [f"S{item['stage']}: {item['track'].get('title', '?')[:25]}" for item in track_items]
+            t_labels = [
+                f"S{item['stage']}: {item['track'].get('title', '?')[:25]}"
+                for item in track_items
+            ]
 
             fig.add_trace(
                 go.Scatter3d(
                     x=tv, y=te, z=tt,
-                    mode="markers",
-                    marker=dict(size=6, color="#4ECDC4", symbol="circle", opacity=0.8),
+                    mode="markers+text",
+                    marker=dict(size=8, color="#4ECDC4", symbol="circle",
+                                opacity=0.9, line=dict(width=1, color="white")),
                     text=t_labels,
+                    textposition="top center",
+                    textfont=dict(size=9, color="#4ECDC4"),
                     name=t("legend_tracks", L),
                     hovertemplate="%{text}<br>V: %{x:.2f}<br>E: %{y:.2f}<br>T: %{z:.2f}<extra></extra>",
                 )
