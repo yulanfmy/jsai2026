@@ -603,7 +603,6 @@ def _render_eval_mode(
     user_id: str,
     K: int,
     N: int,
-    alpha_val: float,
 ) -> None:
     """Render the blind A/B/C evaluation comparison."""
     token = ensure_spotify_token()
@@ -620,7 +619,6 @@ def _render_eval_mode(
                 user_id=user_id,
                 K=K,
                 N=N,
-                alpha=alpha_val,
             )
 
             # 2. Linear (v1 as N-track list)
@@ -899,7 +897,6 @@ def render_app(user_id: str) -> None:
     if st.sidebar.button(t("reset_ratings", L), key="reset_ratings"):
         st.session_state.pop("last_rating", None)
         st.session_state.pop("v2_result", None)
-        st.session_state.pop("v1_playlist", None)
         st.session_state.pop("eval_results", None)
         st.session_state.pop("eval_mapping", None)
         st.sidebar.success(t("ratings_reset", L))
@@ -909,18 +906,6 @@ def render_app(user_id: str) -> None:
     st.sidebar.markdown("---")
     st.sidebar.header(t("eval_header", L))
     st.sidebar.caption(t("eval_caption", L))
-
-    alpha_options = {"0.33 (linear)": 0.33, "0.6 (dynamic)": 0.6, "1.0": 1.0}
-    alpha_label = st.sidebar.selectbox(
-        t("alpha_label", L),
-        list(alpha_options.keys()),
-        index=1,
-        help=t("alpha_help", L),
-    )
-    alpha_val = alpha_options[alpha_label]
-
-    # v1 Linear strategy toggle
-    v1_enabled = st.sidebar.checkbox(t("enable_v1", L), value=False, key="v1_mode")
 
     # Eval mode toggle (blind A/B/C comparison)
     eval_mode = st.sidebar.checkbox(
@@ -944,49 +929,21 @@ def render_app(user_id: str) -> None:
             # --- Evaluation mode: blind A/B/C comparison ---
             _render_eval_mode(
                 L, current, target, current_name, target_name,
-                user_id, K, N, alpha_val,
+                user_id, K, N,
             )
         else:
-            v1_mode = st.session_state.get("v1_mode", False)
-
-            if v1_mode:
-                # Legacy v1 mode
-                if st.button(t("generate_v1", L), type="secondary"):
-                    from src.playlist import generate_playlist
-                    from src.strategies import get_strategy_description
-                    playlist = generate_playlist(
-                        current=current,
-                        target=target,
+            # v2 Dynamic mode
+            if st.button(t("generate_v2", L), type="primary"):
+                with st.spinner(t("running_v2", L)):
+                    from src.selection.assemble import recommend_v2
+                    result = recommend_v2(
+                        source_label=current_name,
+                        target_label=target_name,
                         user_id=user_id,
-                        strategy_name="Linear",
-                        tracks_per_phase=3,
+                        K=K,
+                        N=N,
                     )
-                    st.session_state["v1_playlist"] = playlist
-
-                if "v1_playlist" in st.session_state:
-                    playlist = st.session_state["v1_playlist"]
-                    st.warning(t("v1_mode_warning", L))
-                    for i, pp in enumerate(playlist.phases):
-                        phase = pp.phase
-                        st.subheader(t("phase_heading", L, n=i + 1, label=phase.label))
-                        for j, track in enumerate(pp.tracks, 1):
-                            spotify_url = f"https://open.spotify.com/track/{track.get('id', '')}"
-                            st.markdown(f"**{j}. [{track['title']}]({spotify_url})** \u2014 {track['artist']}")
-                        st.divider()
-            else:
-                # v2 Dynamic mode
-                if st.button(t("generate_v2", L), type="primary"):
-                    with st.spinner(t("running_v2", L)):
-                        from src.selection.assemble import recommend_v2
-                        result = recommend_v2(
-                            source_label=current_name,
-                            target_label=target_name,
-                            user_id=user_id,
-                            K=K,
-                            N=N,
-                            alpha=alpha_val,
-                        )
-                        st.session_state["v2_result"] = result
+                    st.session_state["v2_result"] = result
 
                 if "v2_result" in st.session_state:
                     result = st.session_state["v2_result"]
