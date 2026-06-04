@@ -676,6 +676,122 @@ EMOTION_NAMES: dict[str, dict[str, str]] = {
     "Excited":    {"en": "Excited",    "ja": "興奮"},
 }
 
+# ── Dashboard i18n ──────────────────────────────────────────────
+TRANSLATIONS.update({
+    "dashboard_link": {
+        "en": "Dashboard",
+        "ja": "管理ダッシュボード",
+    },
+    "dashboard_title": {
+        "en": "Usage Dashboard",
+        "ja": "利用状況ダッシュボード",
+    },
+    "dashboard_subtitle": {
+        "en": "System health, user coverage, and data quality at a glance.",
+        "ja": "システム状態、ユーザーカバレッジ、データ品質の概要",
+    },
+    "dashboard_summary": {
+        "en": "System Summary",
+        "ja": "システム概要",
+    },
+    "dashboard_total_users": {
+        "en": "Total Users",
+        "ja": "ユーザー数",
+    },
+    "dashboard_total_tracks": {
+        "en": "Unique Tracks",
+        "ja": "ユニークトラック数",
+    },
+    "dashboard_overall_coverage": {
+        "en": "Overall Zenodo Coverage",
+        "ja": "全体Zenodoカバレッジ",
+    },
+    "dashboard_total_playlists": {
+        "en": "Playlists Generated",
+        "ja": "生成プレイリスト数",
+    },
+    "dashboard_per_user": {
+        "en": "Per-User Details",
+        "ja": "ユーザー別詳細",
+    },
+    "dashboard_no_users": {
+        "en": "No users have used the app yet.",
+        "ja": "まだアプリを使用したユーザーがいません。",
+    },
+    "dashboard_col_user": {
+        "en": "User",
+        "ja": "ユーザー",
+    },
+    "dashboard_col_library": {
+        "en": "Library Size",
+        "ja": "ライブラリ数",
+    },
+    "dashboard_col_zenodo": {
+        "en": "Zenodo Covered",
+        "ja": "Zenodo対応数",
+    },
+    "dashboard_col_coverage": {
+        "en": "Coverage %",
+        "ja": "カバレッジ %",
+    },
+    "dashboard_col_playlists": {
+        "en": "Playlists",
+        "ja": "プレイリスト数",
+    },
+    "dashboard_col_status": {
+        "en": "Status",
+        "ja": "状態",
+    },
+    "dashboard_low_coverage_flag": {
+        "en": "⚠ Low Coverage",
+        "ja": "⚠ 低カバレッジ",
+    },
+    "dashboard_ok": {
+        "en": "OK",
+        "ja": "OK",
+    },
+    "dashboard_data_quality": {
+        "en": "Data Quality",
+        "ja": "データ品質",
+    },
+    "dashboard_missing_subfeatures": {
+        "en": "Missing Sub-features",
+        "ja": "欠落サブ特徴量",
+    },
+    "dashboard_missing_subfeatures_help": {
+        "en": "Track × sub-feature entries that are NaN. These tracks cannot be fully corrected.",
+        "ja": "NaN のトラック×サブ特徴量エントリ数。これらのトラックは完全に補正できません。",
+    },
+    "dashboard_fallback_raw": {
+        "en": "Raw Fallback Tracks",
+        "ja": "Rawフォールバックトラック",
+    },
+    "dashboard_fallback_raw_help": {
+        "en": "Tracks using raw (uncorrected) V or E because sub-features were missing.",
+        "ja": "サブ特徴量が不足しているため、未補正の V または E を使用しているトラック数。",
+    },
+    "dashboard_coverage_dist": {
+        "en": "Coverage Distribution",
+        "ja": "カバレッジ分布",
+    },
+    "dashboard_coverage_range": {
+        "en": "Coverage Range",
+        "ja": "カバレッジ範囲",
+    },
+    "dashboard_user_count": {
+        "en": "Users",
+        "ja": "ユーザー数",
+    },
+    "dashboard_no_data": {
+        "en": "No coverage data available.",
+        "ja": "カバレッジデータがありません。",
+    },
+    "dashboard_back": {
+        "en": "← Back to App",
+        "ja": "← アプリに戻る",
+    },
+})
+
 
 def t(key: str, lang: str = "en", **kwargs: object) -> str:
     """Look up a translated string, with optional format kwargs."""

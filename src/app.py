@@ -24,6 +24,7 @@ from src.config import (
     SPOTIFY_REDIRECT_URI,
 )
 from src.config_loader import PARAMS
+from src.dashboard import can_view_dashboard, render_dashboard
 from src.emotions import Emotion, get_emotion, list_emotions
 from src.i18n import t, emotion_name
 from src.spotify import (
@@ -762,6 +763,16 @@ def render_app(user_id: str) -> None:
     st.title(t("main_title", L))
     st.caption(t("main_subtitle", L))
 
+    # Dashboard link (gated by can_view_dashboard)
+    if can_view_dashboard(user_id):
+        st.markdown(
+            f'<a href="?page=dashboard" target="_self" style="'
+            'font-size:0.9em;color:#1DB954;text-decoration:none;'
+            f'font-weight:600;">'
+            f'📊 {t("dashboard_link", L)}</a>',
+            unsafe_allow_html=True,
+        )
+
     track_count = get_track_count(user_id)
     if track_count == 0:
         render_library_import(user_id)
@@ -1098,6 +1109,17 @@ def render_app(user_id: str) -> None:
 def main() -> None:
     handle_spotify_callback()
     user_id = get_user_id()
+
+    # Route: dashboard page
+    if st.query_params.get("page") == "dashboard":
+        if user_id and can_view_dashboard(user_id):
+            render_dashboard()
+        elif user_id:
+            st.error("Access denied.")
+        else:
+            render_login()
+        return
+
     if user_id:
         render_app(user_id)
     else:
