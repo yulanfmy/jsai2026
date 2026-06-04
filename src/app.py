@@ -131,6 +131,16 @@ def render_login() -> None:
     st.title(t("app_title", L))
     st.caption(t("app_subtitle", L))
 
+    # Dashboard link on login page (gated by can_view_dashboard)
+    if can_view_dashboard():
+        st.markdown(
+            f'<a href="?page=dashboard" target="_self" style="'
+            'font-size:0.9em;color:#1DB954;text-decoration:none;'
+            f'font-weight:600;'>'
+            f'📊 {t("dashboard_link", L)}</a>',
+            unsafe_allow_html=True,
+        )
+
     auth_err = st.session_state.pop("_auth_error", None)
     if auth_err:
         st.error(
@@ -1110,14 +1120,12 @@ def main() -> None:
     handle_spotify_callback()
     user_id = get_user_id()
 
-    # Route: dashboard page
+    # Route: dashboard page (accessible without login)
     if st.query_params.get("page") == "dashboard":
-        if user_id and can_view_dashboard(user_id):
+        if can_view_dashboard(user_id):
             render_dashboard()
-        elif user_id:
-            st.error("Access denied.")
         else:
-            render_login()
+            st.error("Access denied.")
         return
 
     if user_id:
