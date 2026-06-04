@@ -44,27 +44,30 @@ def target_loss(
     if gamma is None:
         gamma = PARAMS.gamma
 
+    def _f(v: object) -> float:
+        return float(v) if v is not None else 0.0
+
     # Position distance in z-scored space (§3.5 / §6)
     if zscore_params is not None:
         from src.feature_store import standardize
-        tV = float(track.get("zV", 0.0))
-        tE = float(track.get("zE", 0.0))
-        tT = float(track.get("zT", 0.0))
+        tV = _f(track.get("zV"))
+        tE = _f(track.get("zE"))
+        tT = _f(track.get("zT"))
         sV, sE, sT = standardize(stage.V, stage.E, stage.T, zscore_params=zscore_params)
     else:
-        tV = float(track.get("V", 0.0))
-        tE = float(track.get("E", 0.0))
-        tT = float(track.get("T", 0.0))
+        tV = _f(track.get("V"))
+        tE = _f(track.get("E"))
+        tT = _f(track.get("T"))
         sV, sE, sT = stage.V, stage.E, stage.T
 
     pos = math.sqrt((tV - sV) ** 2 + (tE - sE) ** 2 + (tT - sT) ** 2)
 
     # Arc direction mismatch (raw space — cosine is scale-invariant)
-    raw_E = float(track.get("E", 0.0))
-    raw_T = float(track.get("T", 0.0))
+    raw_E = _f(track.get("E"))
+    raw_T = _f(track.get("T"))
     track_dir = (
-        float(track.get("arc_end_E", raw_E)) - float(track.get("arc_start_E", raw_E)),
-        float(track.get("arc_end_T", raw_T)) - float(track.get("arc_start_T", raw_T)),
+        _f(track.get("arc_end_E") if track.get("arc_end_E") is not None else raw_E) - _f(track.get("arc_start_E") if track.get("arc_start_E") is not None else raw_E),
+        _f(track.get("arc_end_T") if track.get("arc_end_T") is not None else raw_T) - _f(track.get("arc_start_T") if track.get("arc_start_T") is not None else raw_T),
     )
     expected_dir = (stage.expected_dir_E, stage.expected_dir_T)
     cos_sim = _cosine_similarity(track_dir, expected_dir)
