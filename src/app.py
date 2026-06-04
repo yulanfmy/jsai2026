@@ -19,7 +19,6 @@ import streamlit as st
 
 from src.config import (
     GEMINI_API_KEY,
-    OPENAI_API_KEY,
     SPOTIFY_CLIENT_ID,
     SPOTIFY_CLIENT_SECRET,
     SPOTIFY_REDIRECT_URI,
@@ -44,7 +43,6 @@ from src.tracks import (
     invalidate_cache,
     load_tracks,
     save_tracks,
-    tracks_have_features,
 )
 
 st.set_page_config(page_title="MindTune", page_icon="\U0001f3b5", layout="wide")
@@ -402,12 +400,18 @@ def _feature_store_count(user_id: str) -> int:
 
 
 def render_feature_store_build(user_id: str) -> None:
-    """Show UI for building the feature store from v1 tracks."""
+    """Show UI for building the v2 feature store (LLM extraction + correction)."""
     L = _lang()
-    st.warning(t("fs_not_built", L))
-    st.info(t("fs_build_info", L))
+    count = get_track_count(user_id)
+    st.warning(t("features_not_estimated", L, count=count))
 
-    if st.button(t("build_feature_store", L), type="primary", key="build_fs"):
+    if not GEMINI_API_KEY:
+        st.error(t("set_llm_key", L))
+        return
+
+    st.info(t("estimation_info", L))
+
+    if st.button(t("estimate_features", L), type="primary", key="build_fs"):
         with st.spinner(t("building_fs", L)):
             try:
                 from src.feature_extraction.build_pipeline import build
@@ -421,51 +425,6 @@ def render_feature_store_build(user_id: str) -> None:
                 st.rerun()
             except Exception as exc:
                 st.error(t("build_failed", L, error=exc))
-
-
-# ---------------------------------------------------------------------------
-# Feature estimation (v1 fallback)
-# ---------------------------------------------------------------------------
-
-def render_feature_estimation_ui(user_id: str) -> None:
-    L = _lang()
-    st.warning(t("features_not_estimated", L, count=get_track_count(user_id)))
-
-    if not OPENAI_API_KEY and not GEMINI_API_KEY:
-        st.error(t("set_llm_key", L))
-        return
-
-    st.info(t("estimation_info", L))
-
-    if st.button(t("estimate_features", L), type="primary"):
-        from src.feature_estimator import estimate_batch
-        tracks = load_tracks(user_id)
-        remaining = [tr for tr in tracks if "energy" not in tr]
-
-        progress_bar = st.progress(0, text=t("estimating_features", L))
-        status = st.empty()
-
-        def on_progress(done: int, total: int) -> None:
-            progress_bar.progress(done / total, text=t("estimated_tracks", L, done=done, total=total))
-            status.text(t("processing_batch", L, done=done, total=total))
-
-        estimated = estimate_batch(remaining, batch_size=10, progress_callback=on_progress)
-
-        done_map = {tr["id"]: tr for tr in estimated if "energy" in tr}
-        updated = []
-        for tr in tracks:
-            if tr["id"] in done_map:
-                updated.append(done_map[tr["id"]])
-            else:
-                updated.append(tr)
-
-        save_tracks(updated, user_id)
-        invalidate_cache(user_id)
-
-        newly_done = sum(1 for tr in updated if "energy" in tr)
-        progress_bar.progress(1.0, text=t("done", L))
-        status.success(t("estimation_done", L, done=newly_done, total=len(updated)))
-        st.rerun()
 
 
 # ---------------------------------------------------------------------------
@@ -790,15 +749,13 @@ def render_app(user_id: str) -> None:
         render_library_import(user_id)
         st.stop()
 
-    has_features = tracks_have_features(user_id)
-    if not has_features:
-        render_feature_estimation_ui(user_id)
-        st.divider()
-        st.info(t("features_setup_note", L))
-
-    # Check feature store
+    # Check feature store (v2 pipeline — all features come from parquet)
     has_store = _check_feature_store(user_id)
     fs_count = _feature_store_count(user_id) if has_store else 0
+
+    if not has_store:
+        render_feature_store_build(user_id)
+        st.stop()
 
     # Sidebar: Emotion Settings
     st.sidebar.header(t("emotion_settings", L))
@@ -856,23 +813,7 @@ def render_app(user_id: str) -> None:
                         invalidate_cache(user_id)
                     st.sidebar.info(t("updated_tracks", L, count=len(tracks)))
 
-                    # Estimate features for tracks missing v1 features
-                    remaining = [tr for tr in tracks if "energy" not in tr]
-                    if remaining and OPENAI_API_KEY:
-                        with st.spinner(t("estimating_features", L)):
-                            from src.feature_estimator import estimate_batch
-                            estimated = estimate_batch(remaining, batch_size=10)
-                            done_map = {tr["id"]: tr for tr in estimated if "energy" in tr}
-                            updated = []
-                            for tr in tracks:
-                                if tr["id"] in done_map:
-                                    updated.append(done_map[tr["id"]])
-                                else:
-                                    updated.append(tr)
-                            save_tracks(updated, user_id)
-                            invalidate_cache(user_id)
-
-                    # Rebuild feature store
+                    # Rebuild feature store (v2 pipeline)
                     with st.spinner(t("building_fs", L)):
                         from src.feature_extraction.build_pipeline import build
                         metrics = build(user_id=user_id)
@@ -933,24 +874,7 @@ def render_app(user_id: str) -> None:
                         invalidate_cache(user_id)
                     st.sidebar.info(t("updated_tracks", L, count=len(tracks)))
 
-                    # Estimate features for all tracks (fresh start)
-                    if OPENAI_API_KEY:
-                        remaining = [tr for tr in tracks if "energy" not in tr]
-                        if remaining:
-                            with st.spinner(t("estimating_features", L)):
-                                from src.feature_estimator import estimate_batch
-                                estimated = estimate_batch(remaining, batch_size=10)
-                                done_map = {tr["id"]: tr for tr in estimated if "energy" in tr}
-                                updated = []
-                                for tr in tracks:
-                                    if tr["id"] in done_map:
-                                        updated.append(done_map[tr["id"]])
-                                    else:
-                                        updated.append(tr)
-                                save_tracks(updated, user_id)
-                                invalidate_cache(user_id)
-
-                    # Rebuild feature store
+                    # Rebuild feature store (v2 pipeline)
                     with st.spinner(t("building_fs", L)):
                         from src.feature_extraction.build_pipeline import build
                         metrics = build(user_id=user_id)
@@ -994,10 +918,6 @@ def render_app(user_id: str) -> None:
     with tab1:
         if current_name == target_name:
             st.info(t("same_emotion", L))
-        elif not has_features and not has_store:
-            st.info(t("need_features_or_store", L))
-        elif not has_store:
-            render_feature_store_build(user_id)
         elif eval_mode:
             # --- Evaluation mode: blind A/B/C comparison ---
             _render_eval_mode(
@@ -1096,18 +1016,13 @@ def render_app(user_id: str) -> None:
 
         for tr in page_tracks:
             features = ""
-            v = tr.get("V", tr.get("energy"))
+            v = tr.get("V")
             e = tr.get("E")
             tval = tr.get("T")
             if v is not None and e is not None:
                 features = f" | V:{v:.2f} E:{e:.2f}"
                 if tval is not None:
                     features += f" T:{tval:.2f}"
-            elif tr.get("energy") is not None:
-                features = (
-                    f" | E:{tr['energy']:.2f} H:{tr.get('happiness', 0):.2f}"
-                    f" BPM:{tr.get('bpm', '?')}"
-                )
             vibe = tr.get("vibe", "")
             if vibe:
                 features += f" [{vibe}]"

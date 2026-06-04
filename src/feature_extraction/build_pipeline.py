@@ -1,6 +1,6 @@
-"""End-to-end offline feature pipeline.
+"""End-to-end offline feature pipeline (v2).
 
-Runs: bootstrap/LLM extraction → Zenodo join → valence correction → energy correction → feature store.
+Runs: LLM extraction (Gemini) → Zenodo join → V/E correction → feature store.
 This script is meant to be run once (or when the track library changes).
 """
 
@@ -16,17 +16,15 @@ _ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(_ROOT))
 
 
-def build(user_id: str | None = None, use_llm: bool = True) -> dict:
+def build(user_id: str | None = None) -> dict:
     """Run the full offline pipeline.
 
     Args:
         user_id: Spotify user ID (for per-user store). If None, uses the test set.
-        use_llm: If True, use LLM extraction. If False, bootstrap from v1 features.
 
     Returns:
         Metrics dict with coverage, correction stats, and track count.
     """
-    from src.feature_extraction.bootstrap_v1 import bootstrap_all
     from src.feature_extraction.zenodo_join import load_zenodo_index, join_tracks, save_labeled_parquet
     from src.feature_extraction.correct_valence import train_model as train_model_V, correct_valence, write_report as write_report_V
     from src.feature_extraction.correct_energy import train_model as train_model_E, correct_energy, write_report as write_report_E
@@ -46,35 +44,31 @@ def build(user_id: str | None = None, use_llm: bool = True) -> dict:
 
     print(f"Loaded {len(tracks)} tracks")
 
-    # 2. Feature extraction (bootstrap or LLM)
-    if use_llm:
-        from src.feature_extraction.llm_extract import extract_batch, save_raw_parquet, load_raw_parquet
-        # Reuse cached LLM extraction if available (expensive to redo)
-        cached = load_raw_parquet(user_id=user_id)
-        if cached:
-            print(f"Reusing cached LLM features ({len(cached)} tracks)")
-            # Merge metadata from fresh tracks with cached LLM features
-            cached_map = {t["id"]: t for t in cached}
-            extracted = []
-            new_tracks = []
-            for t in tracks:
-                tid = t.get("id", "")
-                if tid in cached_map:
-                    extracted.append(cached_map[tid])
-                else:
-                    new_tracks.append(t)
-            if new_tracks:
-                print(f"Extracting {len(new_tracks)} new tracks...")
-                new_extracted = extract_batch(new_tracks, batch_size=10)
-                extracted.extend(new_extracted)
-                save_raw_parquet(extracted, user_id=user_id)
+    # 2. LLM feature extraction (Gemini)
+    from src.feature_extraction.llm_extract import extract_batch, save_raw_parquet, load_raw_parquet
+    # Reuse cached LLM extraction if available (expensive to redo)
+    cached = load_raw_parquet(user_id=user_id)
+    if cached:
+        print(f"Reusing cached LLM features ({len(cached)} tracks)")
+        cached_map = {t["id"]: t for t in cached}
+        extracted = []
+        new_tracks = []
+        for t in tracks:
+            tid = t.get("id", "")
+            if tid in cached_map:
+                extracted.append(cached_map[tid])
             else:
-                print("All tracks already cached — skipping LLM extraction")
-        else:
-            extracted = extract_batch(tracks, batch_size=10)
+                new_tracks.append(t)
+        if new_tracks:
+            print(f"Extracting {len(new_tracks)} new tracks...")
+            new_extracted = extract_batch(new_tracks, batch_size=10)
+            extracted.extend(new_extracted)
             save_raw_parquet(extracted, user_id=user_id)
+        else:
+            print("All tracks already cached — skipping LLM extraction")
     else:
-        extracted = bootstrap_all(tracks)
+        extracted = extract_batch(tracks, batch_size=10)
+        save_raw_parquet(extracted, user_id=user_id)
     print(f"Extracted features for {len(extracted)} tracks")
 
     # 3. Zenodo join
