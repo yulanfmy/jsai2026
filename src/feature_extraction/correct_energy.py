@@ -1,9 +1,8 @@
-"""Energy correction using LightGBM (same Scheme 1+6 as Valence).
+"""Energy correction using LightGBM (Scheme 1+6 for Energy).
 
-The Energy ablation showed that raw LLM Energy has systematic
-overestimation bias (R² = −0.25). Applying the same correction
-procedure as Valence improves Energy substantially
-(r: 0.646 → 0.745, R²: −0.25 → 0.55).
+Uses 4 energy-specific sub-features (tempo_feel, dynamic_range,
+rhythmic_density, distortion_level) in addition to the shared
+features (V_raw, E_raw, T_raw, valence sub-features, tempo).
 
 The correction model is trained on Zenodo-matched tracks (ground-truth
 Energy) and applied to ALL tracks so the entire library is on one
@@ -23,10 +22,12 @@ _CACHE_DIR = Path(__file__).resolve().parent.parent.parent / "cache"
 _MODELS_DIR = Path(__file__).resolve().parent.parent.parent / "models"
 _REPORTS_DIR = Path(__file__).resolve().parent.parent.parent / "reports"
 
-# Same sub-features as Valence correction (Scheme 1+6)
+# Energy-specific sub-features (Scheme 1+6 for E)
+# Uses both valence sub-features and 4 dedicated energy sub-features
 FEATURE_COLS = [
     "V_raw", "E_raw", "T_raw",
     "mode_major_conf", "lyric_sentiment", "vocal_brightness", "chord_complexity",
+    "tempo_feel", "dynamic_range", "rhythmic_density", "distortion_level",
     "tempo",
 ]
 
@@ -189,9 +190,10 @@ to 0.55 (corrected), with MAE nearly halved (0.38 → 0.22).
 
 ## Method
 
-- **Scheme 1+6**: Same LightGBM procedure as Valence correction.
-  - Features: V_raw, E_raw, T_raw, mode_major_conf, lyric_sentiment,
+- **Scheme 1+6**: LightGBM correction with energy-specific sub-features.
+  - Shared features: V_raw, E_raw, T_raw, mode_major_conf, lyric_sentiment,
     vocal_brightness, chord_complexity, tempo
+  - Energy sub-features: tempo_feel, dynamic_range, rhythmic_density, distortion_level
   - Target: Zenodo ground-truth energy (converted to [-1,+1])
 - Correction applied to ALL tracks (Zenodo + non-Zenodo) for a consistent scale.
 

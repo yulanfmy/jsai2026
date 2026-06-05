@@ -3,7 +3,8 @@
 Calls Gemini (preferred) or OpenAI (fallback) to extract per-track:
   - V_raw, E_raw, T_raw (3D emotion coordinates in [-1,+1])
   - arc_start / arc_end (Scheme B: start/end (E,T) vectors — numeric, not text)
-  - sub_features: mode_major_conf, lyric_sentiment, vocal_brightness, chord_complexity
+  - sub_features_V: mode_major_conf, lyric_sentiment, vocal_brightness, chord_complexity
+  - sub_features_E: tempo_feel, dynamic_range, rhythmic_density, distortion_level
   - key (0-11), mode (0/1), tempo (BPM float), vibe (string), lyrics_present (bool)
 
 Includes retries and JSON-parse tolerance.
@@ -36,7 +37,11 @@ Return ONLY a JSON object with these fields (no markdown, no explanation):
     "mode_major_conf": <float 0 to 1, likelihood of major key>,
     "lyric_sentiment": <float -1 to 1, lyric sentiment>,
     "vocal_brightness": <float 0 to 1, vocal/timbre brightness>,
-    "chord_complexity": <float 0 to 1, harmonic complexity>
+    "chord_complexity": <float 0 to 1, harmonic complexity>,
+    "tempo_feel": <float 0 to 1, perceived speed: slow(0) to fast(1)>,
+    "dynamic_range": <float 0 to 1, loud/quiet contrast: compressed(0) to wide(1)>,
+    "rhythmic_density": <float 0 to 1, how busy the rhythm: sparse(0) to dense(1)>,
+    "distortion_level": <float 0 to 1, amount of distortion/grit: clean(0) to heavy(1)>
   },
   "key": <int 0-11, C=0, C#=1, ..., B=11>,
   "mode": <int 0 or 1, 0=minor, 1=major>,
@@ -56,7 +61,7 @@ Return ONLY a JSON array where each element corresponds to a track (in order) wi
 V_raw, E_raw, T_raw (floats -1 to 1),
 arc_start (object with E and T floats),
 arc_end (object with E and T floats),
-sub_features (object with mode_major_conf 0-1, lyric_sentiment -1 to 1, vocal_brightness 0-1, chord_complexity 0-1),
+sub_features (object with mode_major_conf 0-1, lyric_sentiment -1 to 1, vocal_brightness 0-1, chord_complexity 0-1, tempo_feel 0-1, dynamic_range 0-1, rhythmic_density 0-1, distortion_level 0-1),
 key (int 0-11), mode (int 0 or 1), tempo (float BPM),
 vibe (string), lyrics_present (boolean).
 
@@ -86,10 +91,16 @@ def _flatten_features(raw: dict) -> dict:
     result["arc_end_T"] = float(arc_end.get("T", result["T_raw"]))
 
     sub = raw.get("sub_features", {})
+    # Valence sub-features
     result["mode_major_conf"] = float(sub.get("mode_major_conf", 0.5))
     result["lyric_sentiment"] = float(sub.get("lyric_sentiment", 0.0))
     result["vocal_brightness"] = float(sub.get("vocal_brightness", 0.5))
     result["chord_complexity"] = float(sub.get("chord_complexity", 0.5))
+    # Energy sub-features
+    result["tempo_feel"] = float(sub.get("tempo_feel", 0.5))
+    result["dynamic_range"] = float(sub.get("dynamic_range", 0.5))
+    result["rhythmic_density"] = float(sub.get("rhythmic_density", 0.5))
+    result["distortion_level"] = float(sub.get("distortion_level", 0.0))
 
     result["key"] = int(raw.get("key", 0))
     result["mode"] = int(raw.get("mode", 0))

@@ -31,8 +31,11 @@ _ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(_ROOT))
 
 from src.feature_extraction.correct_valence import (
-    FEATURE_COLS,
+    FEATURE_COLS as FEATURE_COLS_V,
     prepare_features,
+)
+from src.feature_extraction.correct_energy import (
+    FEATURE_COLS as FEATURE_COLS_E,
 )
 
 _OUTPUT_DIR = Path(__file__).resolve().parent / "outputs"
@@ -83,8 +86,9 @@ def load_labeled_tracks() -> pd.DataFrame:
         if col not in df.columns:
             raise ValueError(f"Missing column: {col}")
     df = df.dropna(subset=required)
-    # Fill missing sub-feature columns with 0
-    for col in FEATURE_COLS:
+    # Fill missing sub-feature columns with 0 (union of V and E features)
+    all_feature_cols = list(dict.fromkeys(FEATURE_COLS_V + FEATURE_COLS_E))
+    for col in all_feature_cols:
         if col not in df.columns:
             df[col] = 0.0
         else:
@@ -134,9 +138,9 @@ def run_evaluation() -> dict:
     raw_V = df["V_raw"].values.astype(float)
     raw_E = df["E_raw"].values.astype(float)
 
-    # Prepare feature matrix for correction model
-    X_all = df[FEATURE_COLS].values.astype(float)
-    X_df = pd.DataFrame(X_all, columns=FEATURE_COLS)
+    # Prepare feature matrices for correction models (V and E use different features)
+    X_V_df = df[FEATURE_COLS_V].copy()
+    X_E_df = df[FEATURE_COLS_E].copy()
 
     # ── 5-fold CV ──
     kf = KFold(n_splits=K_FOLDS, shuffle=True, random_state=SEED)
@@ -147,7 +151,9 @@ def run_evaluation() -> dict:
     mean_pred_E = np.zeros(n)
 
     print(f"\nRunning {K_FOLDS}-fold cross-validation (seed={SEED})...")
-    for fold_i, (train_idx, test_idx) in enumerate(kf.split(X_all)):
+    print(f"  V features ({len(FEATURE_COLS_V)}): {FEATURE_COLS_V}")
+    print(f"  E features ({len(FEATURE_COLS_E)}): {FEATURE_COLS_E}")
+    for fold_i, (train_idx, test_idx) in enumerate(kf.split(X_V_df)):
         print(f"  Fold {fold_i + 1}/{K_FOLDS}: "
               f"train={len(train_idx)}, test={len(test_idx)}")
 
@@ -155,20 +161,22 @@ def run_evaluation() -> dict:
         mean_pred_V[test_idx] = gt_V[train_idx].mean()
         mean_pred_E[test_idx] = gt_E[train_idx].mean()
 
-        # --- Proposed: v2 correction (Scheme 1+6) ---
-        X_train = X_df.iloc[train_idx]
+        # --- Proposed: v2 Valence correction (Scheme 1+6 with V sub-features) ---
+        X_V_train = X_V_df.iloc[train_idx]
         y_train_V = gt_V[train_idx]
+        model_V = train_correction_fold(X_V_train, y_train_V)
 
-        model_V = train_correction_fold(X_train, y_train_V)
-
-        X_test = X_df.iloc[test_idx]
-        preds = model_V.predict(X_test)
+        X_V_test = X_V_df.iloc[test_idx]
+        preds = model_V.predict(X_V_test)
         corrected_V[test_idx] = np.clip(preds, -1.0, 1.0)
 
-        # --- Energy correction ablation (same Scheme 1+6 for E) ---
+        # --- Proposed: v2 Energy correction (Scheme 1+6 with E sub-features) ---
+        X_E_train = X_E_df.iloc[train_idx]
         y_train_E = gt_E[train_idx]
-        model_E = train_correction_fold(X_train, y_train_E)
-        preds_E = model_E.predict(X_test)
+        model_E = train_correction_fold(X_E_train, y_train_E)
+
+        X_E_test = X_E_df.iloc[test_idx]
+        preds_E = model_E.predict(X_E_test)
         corrected_E_ablation[test_idx] = np.clip(preds_E, -1.0, 1.0)
 
     # ── Compute metrics ──

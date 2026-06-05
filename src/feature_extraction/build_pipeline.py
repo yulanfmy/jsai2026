@@ -123,36 +123,41 @@ def build(user_id: str | None = None) -> dict:
 
     metrics: dict = {"n_tracks": len(enriched), "matched": matched, "total": total, "pooled_labeled": pooled_labeled}
 
-    # Reuse existing correction models if available (trained on Zenodo pool)
-    if _model_V_path.exists() and _model_E_path.exists():
-        import pickle
-        with open(_model_V_path, "rb") as fv:
-            model_V = pickle.load(fv)
-        with open(_model_E_path, "rb") as fe:
-            model_E = pickle.load(fe)
-        print("Reusing existing correction models (models/model_V.pkl, model_E.pkl)")
-        corrected = correct_valence(enriched, model_V)
-        corrected = correct_energy(corrected, model_E)
-    elif pooled_labeled >= 10:
-        model_V, train_metrics_V = train_model_V(training_pool)
-        metrics.update(train_metrics_V)
-        write_report_V(train_metrics_V)
-        corrected = correct_valence(enriched, model_V)
-        print(f"Valence correction: r_before={train_metrics_V['r_before']:.4f}, r_after={train_metrics_V['r_after']:.4f}")
+    # Load or train correction models independently
+    import pickle
+    corrected = enriched
 
-        model_E, train_metrics_E = train_model_E(corrected)
-        metrics.update(train_metrics_E)
-        write_report_E(train_metrics_E)
-        corrected = correct_energy(corrected, model_E)
-        print(f"Energy correction: r_before={train_metrics_E['r_before_E']:.4f}, r_after={train_metrics_E['r_after_E']:.4f}")
-    else:
-        corrected = enriched
+    if pooled_labeled < 10:
         for t in corrected:
             if "V" not in t:
                 t["V"] = t.get("V_raw", 0.0)
             if "E" not in t:
                 t["E"] = t.get("E_raw", 0.0)
         print(f"Too few labeled tracks ({pooled_labeled}) for correction — using raw features")
+    else:
+        # Valence model
+        if _model_V_path.exists():
+            with open(_model_V_path, "rb") as fv:
+                model_V = pickle.load(fv)
+            print("Reusing existing model_V.pkl")
+        else:
+            model_V, train_metrics_V = train_model_V(training_pool)
+            metrics.update(train_metrics_V)
+            write_report_V(train_metrics_V)
+            print(f"Valence correction: r_before={train_metrics_V['r_before']:.4f}, r_after={train_metrics_V['r_after']:.4f}")
+        corrected = correct_valence(corrected, model_V)
+
+        # Energy model
+        if _model_E_path.exists():
+            with open(_model_E_path, "rb") as fe:
+                model_E = pickle.load(fe)
+            print("Reusing existing model_E.pkl")
+        else:
+            model_E, train_metrics_E = train_model_E(training_pool)
+            metrics.update(train_metrics_E)
+            write_report_E(train_metrics_E)
+            print(f"Energy correction: r_before={train_metrics_E['r_before_E']:.4f}, r_after={train_metrics_E['r_after_E']:.4f}")
+        corrected = correct_energy(corrected, model_E)
 
     # 4c. Map T_raw → T (no correction model for Tension — no ground truth)
     for tr in corrected:
