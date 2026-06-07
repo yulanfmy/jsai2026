@@ -287,4 +287,106 @@ fig.savefig(f"{OUT}/eval_paired_diff.png", dpi=200, bbox_inches="tight", facecol
 print(f"Saved: {OUT}/eval_paired_diff.png")
 plt.close()
 
+# ── Chart 5: Olympic medal table per evaluator ──
+medal_colors = {"gold": "#FFD700", "silver": "#C0C0C0", "bronze": "#CD7F32"}
+medal_labels = {"gold": "1st (Gold)", "silver": "2nd (Silver)", "bronze": "3rd (Bronze)"}
+
+evaluators = sorted(df["Name"].unique())
+
+# Build medal counts: evaluator -> method -> {gold, silver, bronze}
+medal_data = {}
+for ev in evaluators:
+    medal_data[ev] = {m: {"gold": 0, "silver": 0, "bronze": 0} for m in method_order}
+    ev_tests = paired_df[paired_df["Name"] == ev]
+    for _, r in ev_tests.iterrows():
+        scores = [(r[m], m) for m in method_order]
+        scores.sort(key=lambda x: -x[0])
+        prev_score = None
+        rank = 0
+        for i, (sc, meth) in enumerate(scores):
+            if sc != prev_score:
+                rank = i + 1
+            medal = {1: "gold", 2: "silver", 3: "bronze"}.get(rank)
+            if medal:
+                medal_data[ev][meth][medal] += 1
+            prev_score = sc
+
+# Print
+print("\nOlympic Medal Table (per evaluator):")
+print("-" * 60)
+for ev in evaluators:
+    print(f"\n  {ev}:")
+    for m in method_order:
+        md = medal_data[ev][m]
+        print(f"    {m:8s}: {md['gold']}G / {md['silver']}S / {md['bronze']}B")
+
+# Also print overall
+print("\n  Overall:")
+for m in method_order:
+    g = sum(medal_data[ev][m]["gold"] for ev in evaluators)
+    s = sum(medal_data[ev][m]["silver"] for ev in evaluators)
+    b = sum(medal_data[ev][m]["bronze"] for ev in evaluators)
+    print(f"    {m:8s}: {g}G / {s}S / {b}B")
+
+# ── Visualization: one sub-chart per evaluator + overall ──
+n_panels = len(evaluators) + 1  # +1 for "Overall"
+fig, axes = plt.subplots(1, n_panels, figsize=(4 * n_panels, 5), sharey=True)
+fig.patch.set_facecolor("white")
+
+panels = list(evaluators) + ["Overall"]
+
+for ax_i, (panel_label, ax) in enumerate(zip(panels, axes)):
+    ax.set_facecolor("white")
+
+    if panel_label == "Overall":
+        counts = {m: {
+            "gold": sum(medal_data[ev][m]["gold"] for ev in evaluators),
+            "silver": sum(medal_data[ev][m]["silver"] for ev in evaluators),
+            "bronze": sum(medal_data[ev][m]["bronze"] for ev in evaluators),
+        } for m in method_order}
+    else:
+        counts = medal_data[panel_label]
+
+    x = np.arange(len(method_order))
+    bar_w = 0.25
+
+    for mi, medal_type in enumerate(["gold", "silver", "bronze"]):
+        vals = [counts[m][medal_type] for m in method_order]
+        offset = (mi - 1) * (bar_w + 0.02)
+        ax.bar(x + offset, vals, width=bar_w, color=medal_colors[medal_type],
+               edgecolor="#888888", linewidth=0.5, alpha=0.9,
+               label=medal_labels[medal_type] if ax_i == 0 else "")
+        for j, v in enumerate(vals):
+            if v > 0:
+                ax.text(x[j] + offset, v + 0.05, str(int(v)),
+                        ha="center", va="bottom", fontsize=10, fontweight="bold", color="#333333")
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(method_order, fontsize=10, fontweight="bold")
+    ax.set_title(panel_label, fontsize=12, fontweight="bold", pad=8)
+    if ax_i == 0:
+        ax.set_ylabel("Count", fontsize=12)
+    ax.set_ylim(0, max(
+        max(counts[m][t] for m in method_order for t in ["gold", "silver", "bronze"]) + 1, 4
+    ))
+    ax.yaxis.set_major_locator(plt.MaxNLocator(integer=True))
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.spines["left"].set_color("#cccccc")
+    ax.spines["bottom"].set_color("#cccccc")
+    ax.yaxis.grid(True, alpha=0.3, linestyle="--")
+
+# Single legend
+handles = [Patch(facecolor=medal_colors[t], edgecolor="#888888", label=medal_labels[t])
+           for t in ["gold", "silver", "bronze"]]
+fig.legend(handles=handles, loc="upper center", ncol=3, fontsize=11,
+           frameon=True, edgecolor="#dddddd", bbox_to_anchor=(0.5, 1.02))
+
+fig.suptitle("Olympic Medal Table: Method Rankings per Evaluator",
+             fontsize=14, fontweight="bold", y=1.08)
+plt.tight_layout(rect=[0, 0, 1, 0.95])
+fig.savefig(f"{OUT}/eval_olympic_medals.png", dpi=200, bbox_inches="tight", facecolor="white")
+print(f"\nSaved: {OUT}/eval_olympic_medals.png")
+plt.close()
+
 print("\nDone.")
