@@ -1,34 +1,32 @@
-"""Russell's circumplex emotion model with 11 emotion states.
+"""3D emotion model with Valence (V), Energy arousal (E), Tension arousal (T).
 
-Each emotion is mapped to (arousal, valence) coordinates in [-1, 1] space,
-along with recommended BPM range.
+Based on Schimmack & Reisenzein (2002): energy arousal and tension arousal
+are driven by independent neurophysiological systems and should not be
+collapsed into a single arousal axis.
+
+Emotion coordinates are loaded from ``config/emotion_map.json`` via config_loader.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass
+
+from src.config_loader import EMOTION_MAP, PARAMS
 
 
 @dataclass(frozen=True)
 class Emotion:
     name: str
-    arousal: float
-    valence: float
-    bpm_low: int
-    bpm_high: int
-    description: str
+    V: float  # valence  [-1, +1]
+    E: float  # energy arousal [-1, +1]
+    T: float  # tension arousal [-1, +1]
 
+
+START_PROTECTION: set[str] = set(PARAMS.start_protection)
 
 EMOTIONS: dict[str, Emotion] = {
-    "angry": Emotion("Angry", 0.8, -0.7, 130, 170, "High energy, negative mood"),
-    "anxious": Emotion("Anxious", 0.7, -0.5, 110, 150, "Restless and uneasy"),
-    "sad": Emotion("Sad", -0.5, -0.7, 50, 80, "Low energy, deep sorrow"),
-    "melancholy": Emotion("Melancholy", -0.3, -0.4, 60, 90, "Gentle sadness, reflective"),
-    "tired": Emotion("Tired", -0.8, -0.2, 50, 70, "Very low energy, fatigued"),
-    "restless": Emotion("Restless", 0.4, -0.2, 100, 130, "Unsettled, seeking change"),
-    "calm": Emotion("Calm", -0.5, 0.4, 60, 85, "Relaxed and at ease"),
-    "peaceful": Emotion("Peaceful", -0.6, 0.6, 55, 80, "Serene and content"),
-    "focused": Emotion("Focused", 0.2, 0.3, 90, 120, "Alert and concentrated"),
-    "confident": Emotion("Confident", 0.5, 0.7, 100, 140, "Assured and empowered"),
-    "excited": Emotion("Excited", 0.9, 0.8, 120, 160, "High energy, very positive"),
+    key.lower(): Emotion(name=ec.name, V=ec.V, E=ec.E, T=ec.T)
+    for key, ec in EMOTION_MAP.items()
 }
 
 
@@ -41,3 +39,8 @@ def get_emotion(name: str) -> Emotion:
 
 def list_emotions() -> list[Emotion]:
     return list(EMOTIONS.values())
+
+
+def emotion_from_vet(V: float, E: float, T: float, label: str = "Custom") -> Emotion:
+    """Create a custom emotion from slider coordinates."""
+    return Emotion(name=label, V=V, E=E, T=T)

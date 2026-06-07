@@ -1,0 +1,177 @@
+"""End-to-end offline feature pipeline (v2).
+
+Runs: LLM extraction (Gemini) → Zenodo join → V/E correction → feature store.
+This script is meant to be run once (or when the track library changes).
+"""
+
+from __future__ import annotations
+
+import json
+import sys
+import time
+from pathlib import Path
+
+_ROOT = Path(__file__).resolve().parent.parent.parent
+
+sys.path.insert(0, str(_ROOT))
+
+
+def build(user_id: str | None = None) -> dict:
+    """Run the full offline pipeline.
+
+    Args:
+        user_id: Spotify user ID (for per-user store). If None, uses the test set.
+
+    Returns:
+        Metrics dict with coverage, correction stats, and track count.
+    """
+    from src.feature_extraction.zenodo_join import load_zenodo_index, join_tracks, save_labeled_parquet
+    from src.feature_extraction.correct_valence import train_model as train_model_V, correct_valence, write_report as write_report_V
+    from src.feature_extraction.correct_energy import train_model as train_model_E, correct_energy, write_report as write_report_E
+    from src.feature_store import build_store
+
+    # 1. Load tracks
+    if user_id:
+        user_path = _ROOT / "src" / "data" / "users" / user_id / "tracks.json"
+        if not user_path.exists():
+            raise FileNotFoundError(f"No tracks for user {user_id}")
+        with open(user_path) as f:
+            tracks = json.load(f)
+    else:
+        test_path = _ROOT / "test_data" / "playlist_1498.json"
+        with open(test_path) as f:
+            tracks = json.load(f)
+
+    print(f"Loaded {len(tracks)} tracks")
+
+    # 2. LLM feature extraction (Gemini)
+    from src.feature_extraction.llm_extract import extract_batch, save_raw_parquet, load_raw_parquet
+    # Reuse cached LLM extraction if available (expensive to redo)
+    cached = load_raw_parquet(user_id=user_id)
+    if cached:
+        print(f"Reusing cached LLM features ({len(cached)} tracks)")
+        cached_map = {t["id"]: t for t in cached}
+        extracted = []
+        new_tracks = []
+        for t in tracks:
+            tid = t.get("id", "")
+            if tid in cached_map:
+                extracted.append(cached_map[tid])
+            else:
+                new_tracks.append(t)
+        if new_tracks:
+            print(f"Extracting {len(new_tracks)} new tracks...")
+            new_extracted = extract_batch(new_tracks, batch_size=10)
+            extracted.extend(new_extracted)
+            save_raw_parquet(extracted, user_id=user_id)
+        else:
+            print("All tracks already cached — skipping LLM extraction")
+    else:
+        extracted = extract_batch(tracks, batch_size=10)
+        save_raw_parquet(extracted, user_id=user_id)
+    print(f"Extracted features for {len(extracted)} tracks")
+
+    # 3. Zenodo join
+    print("Loading Zenodo index...")
+    t0 = time.time()
+    try:
+        zenodo_index = load_zenodo_index()
+        enriched, matched, total = join_tracks(extracted, zenodo_index)
+        del zenodo_index
+        print(f"Zenodo matched: {matched}/{total} ({matched/total*100:.1f}%)")
+        save_labeled_parquet(enriched, user_id=user_id)
+    except FileNotFoundError:
+        print("Zenodo dataset not found — skipping join")
+        enriched = extracted
+        matched, total = 0, len(extracted)
+
+    # 4. Load correction training pool
+    #    Primary: committed zenodo_correction_pool.parquet (~5000 tracks)
+    #    Fallback: pool labeled tracks from all users' per-user caches
+    import pyarrow.parquet as _pq
+    _cache = _ROOT / "cache"
+    zenodo_pool_path = _ROOT / "data" / "zenodo_correction_pool.parquet"
+    if zenodo_pool_path.exists():
+        training_pool = _pq.read_table(zenodo_pool_path).to_pylist()
+        # Add current user's labeled tracks (may have additional matches)
+        pool_ids = {t["id"] for t in training_pool if t.get("id")}
+        for t in enriched:
+            if t.get("has_zenodo") and t.get("id") and t["id"] not in pool_ids:
+                training_pool.append(t)
+                pool_ids.add(t["id"])
+        print(f"Training pool: {len(training_pool)} tracks from Zenodo correction pool + {matched} user matches")
+    else:
+        # Fallback: pool from per-user labeled_tracks files
+        pool_ids = {t["id"] for t in enriched if t.get("id")}
+        training_pool = list(enriched)
+        for lp in sorted(_cache.glob("labeled_tracks_*.parquet")):
+            try:
+                rows = _pq.read_table(lp).to_pylist()
+                for r in rows:
+                    if r.get("id") and r["id"] not in pool_ids:
+                        training_pool.append(r)
+                        pool_ids.add(r["id"])
+            except Exception:
+                pass
+        print(f"Training pool (fallback): {sum(1 for t in training_pool if t.get('has_zenodo'))} labeled tracks from user caches")
+
+    pooled_labeled = sum(1 for t in training_pool if t.get("has_zenodo"))
+
+    _models_dir = _ROOT / "models"
+    _model_V_path = _models_dir / "model_V.pkl"
+    _model_E_path = _models_dir / "model_E.pkl"
+
+    metrics: dict = {"n_tracks": len(enriched), "matched": matched, "total": total, "pooled_labeled": pooled_labeled}
+
+    # Load or train correction models independently
+    import pickle
+    corrected = enriched
+
+    if pooled_labeled < 10:
+        for t in corrected:
+            if "V" not in t:
+                t["V"] = t.get("V_raw", 0.0)
+            if "E" not in t:
+                t["E"] = t.get("E_raw", 0.0)
+        print(f"Too few labeled tracks ({pooled_labeled}) for correction — using raw features")
+    else:
+        # Valence model
+        if _model_V_path.exists():
+            with open(_model_V_path, "rb") as fv:
+                model_V = pickle.load(fv)
+            print("Reusing existing model_V.pkl")
+        else:
+            model_V, train_metrics_V = train_model_V(training_pool)
+            metrics.update(train_metrics_V)
+            write_report_V(train_metrics_V)
+            print(f"Valence correction: r_before={train_metrics_V['r_before']:.4f}, r_after={train_metrics_V['r_after']:.4f}")
+        corrected = correct_valence(corrected, model_V)
+
+        # Energy model
+        if _model_E_path.exists():
+            with open(_model_E_path, "rb") as fe:
+                model_E = pickle.load(fe)
+            print("Reusing existing model_E.pkl")
+        else:
+            model_E, train_metrics_E = train_model_E(training_pool)
+            metrics.update(train_metrics_E)
+            write_report_E(train_metrics_E)
+            print(f"Energy correction: r_before={train_metrics_E['r_before_E']:.4f}, r_after={train_metrics_E['r_after_E']:.4f}")
+        corrected = correct_energy(corrected, model_E)
+
+    # 4c. Map T_raw → T (no correction model for Tension — no ground truth)
+    for tr in corrected:
+        if "T" not in tr and "T_raw" in tr:
+            tr["T"] = tr["T_raw"]
+
+    # 5. Build feature store
+    store_path = build_store(corrected, user_id=user_id)
+    print(f"Feature store built: {store_path} ({len(corrected)} tracks)")
+
+    return metrics
+
+
+if __name__ == "__main__":
+    user = sys.argv[1] if len(sys.argv) > 1 else None
+    metrics = build(user_id=user)
+    print(f"\nMetrics: {json.dumps(metrics, indent=2)}")

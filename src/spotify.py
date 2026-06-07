@@ -11,7 +11,7 @@ from src.config import SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET
 SPOTIFY_AUTH_URL = "https://accounts.spotify.com/authorize"
 SPOTIFY_TOKEN_URL = "https://accounts.spotify.com/api/token"
 SPOTIFY_API_BASE = "https://api.spotify.com/v1"
-SCOPES = "user-library-read user-read-playback-state user-modify-playback-state"
+SCOPES = "user-library-read user-read-playback-state user-modify-playback-state user-top-read"
 
 
 def get_auth_url(redirect_uri: str) -> str:
@@ -146,6 +146,65 @@ def fetch_liked_songs(
     return tracks
 
 
+def get_top_tracks(
+    access_token: str,
+    limit: int = 20,
+    time_range: str = "medium_term",
+) -> list[dict]:
+    """Fetch the user's top tracks from Spotify.
+
+    Args:
+        access_token: Spotify OAuth token.
+        limit: Number of top tracks to return (max 50).
+        time_range: 'short_term' (~4 weeks), 'medium_term' (~6 months), 'long_term' (years).
+    """
+    url = f"{SPOTIFY_API_BASE}/me/top/tracks?limit={limit}&time_range={time_range}"
+    status, body = _curl("GET", url, access_token)
+    if status < 200 or status >= 300:
+        raise SpotifyAPIError(status, body)
+    data = _json.loads(body) if body else {}
+    tracks: list[dict] = []
+    for t in data.get("items", []):
+        if not t.get("id"):
+            continue
+        tracks.append({
+            "id": t["id"],
+            "title": t.get("name", ""),
+            "artist": ", ".join(a["name"] for a in t.get("artists", [])),
+            "album": t.get("album", {}).get("name", ""),
+        })
+    return tracks
+
+
+def get_recommendations(
+    access_token: str,
+    seed_track_ids: list[str],
+    limit: int = 6,
+) -> list[dict]:
+    """Fetch Spotify recommendations seeded from track IDs.
+
+    Falls back to an empty list if the Recommendations API is unavailable
+    (deprecated for new apps since Nov 2024).
+    """
+    seeds = ",".join(seed_track_ids[:5])  # API allows max 5 seeds
+    url = f"{SPOTIFY_API_BASE}/recommendations?seed_tracks={seeds}&limit={limit}"
+    status, body = _curl("GET", url, access_token)
+    if status < 200 or status >= 300:
+        return []  # API unavailable — caller uses fallback
+    data = _json.loads(body) if body else {}
+    tracks: list[dict] = []
+    for t in data.get("tracks", []):
+        if not t.get("id"):
+            continue
+        tracks.append({
+            "id": t["id"],
+            "title": t.get("name", ""),
+            "artist": ", ".join(a["name"] for a in t.get("artists", [])),
+            "album": t.get("album", {}).get("name", ""),
+        })
+    return tracks
+
+
 def start_playback(
     access_token: str,
     track_ids: list[str],
@@ -161,6 +220,12 @@ def start_playback(
     if device_id:
         shuffle_url += f"&device_id={device_id}"
     _curl("PUT", shuffle_url, access_token)
+
+    # Disable repeat so playback stops after the last track
+    repeat_url = f"{SPOTIFY_API_BASE}/me/player/repeat?state=off"
+    if device_id:
+        repeat_url += f"&device_id={device_id}"
+    _curl("PUT", repeat_url, access_token)
 
     uris = [f"spotify:track:{tid}" for tid in track_ids]
     url = f"{SPOTIFY_API_BASE}/me/player/play"
