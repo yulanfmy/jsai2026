@@ -16,6 +16,10 @@ df["From"] = df["From"].str.strip()
 df["To"] = df["To"].str.strip()
 df["Score"] = pd.to_numeric(df["Score"])
 
+# Anonymize evaluator names
+name_map = {n: f"Evaluator {chr(65+i)}" for i, n in enumerate(sorted(df["Name"].unique()))}
+df["Name"] = df["Name"].map(name_map)
+
 print("=" * 60)
 print("BLIND A/B/C EVALUATION RESULTS")
 print("=" * 60)
@@ -188,7 +192,7 @@ for tid in sorted(df["test_id"].unique()):
     fr = row_data["From"].iloc[0]
     to = row_data["To"].iloc[0]
     n = int(row_data["N"].iloc[0])
-    test_labels.append(f"T{tid}: {name}\n{fr}→{to} (N={n})")
+    test_labels.append(f"T{tid}\n{fr}→{to} (N={n})")
     row_scores = []
     for m in method_order:
         s = row_data[row_data["Method"] == m]["Score"].values[0]
